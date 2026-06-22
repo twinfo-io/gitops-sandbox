@@ -1,4 +1,4 @@
-LINEAR_ID:
+LINEAR_ID: TWI-186
 TYPE: BUG
 TITLE: Corrige timeout no WebSocket de sorteios ao vivo
 EPIC: gitops-claude-agents-automacao-universal
