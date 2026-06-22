@@ -188,7 +188,6 @@ jobs:
 
           echo "[run-agent] Issue: $ISSUE_ID | Agent: $AGENT_LABEL"
           echo "[run-agent] Prompt length: ${#CLAUDE_PROMPT} chars"
-          claude --print \
+          printf '%s' "$CLAUDE_PROMPT" | claude --print \
             --dangerously-skip-permissions \
-            --allowedTools "Bash,Read,Edit,Write,mcp__github__create_pull_request,mcp__github__create_branch,mcp__github__push_files,mcp__github__add_issue_comment,mcp__github__create_pull_request_review,mcp__claude_ai_Linear__save_issue,mcp__claude_ai_Linear__save_comment,mcp__claude_ai_Linear__get_issue,mcp__claude_ai_Linear__list_issues" \
-            "$CLAUDE_PROMPT"
+            --allowedTools "Bash,Read,Edit,Write"
