@@ -21,9 +21,11 @@ npm run lint         # eslint src/
 ```
 
 ## Convenções
-- Branch: `feat/TWI-{id}-slug` ou `fix/TWI-{id}-slug`
+- Branch humana: `feat/TWI-{id}-slug` ou `fix/TWI-{id}-slug`
+- Branch de agente: **obrigatório** prefixo `agent/TWI-{id}-slug` (dispara guarda anti-recursão)
 - Commit: Conventional Commits (`feat:`, `fix:`, `chore:`)
-- PR body: sempre preencher o template com LINEAR_ID
+- PR body de agente: **primeira linha obrigatória** `<!-- agent-created: true -->`
+- PR body de agente: incluir link para a Linear issue e resumo do que foi implementado
 - Nunca commitar: `.env`, secrets, arquivos binários grandes
 
 ## Estrutura
@@ -46,10 +48,29 @@ docs/
 ```
 
 ## Comportamento Esperado dos Agents
-- Ao criar PR: **não** pedir confirmações — commitar e abrir PR diretamente
-- Ao encontrar erro em teste: criar arquivo `docs/demands/fix-{slug}.md` com o finding
-- Nunca modificar `.env.example` sem justificativa explícita na issue
-- Sempre rodar `npm run typecheck` antes de abrir PR
+
+### Obrigatório antes de abrir PR
+1. `npm run typecheck` — deve passar sem erros. Se falhar, corrigir antes de abrir PR.
+2. `npm test` — se houver testes relacionados ao código alterado, devem passar.
+3. Nunca abrir PR com TypeScript errors ou test failures.
+
+### Ao criar PR
+- Não pedir confirmações — commitar e abrir PR diretamente
+- Branch **sempre** com prefixo `agent/`
+- Primeira linha do body **sempre** `<!-- agent-created: true -->`
+- Incluir no body: link para a Linear issue, lista do que foi implementado, critérios de aceitação atendidos
+- Nunca incluir no body: chaves de API, tokens, variáveis de ambiente
+
+### Ao encontrar erros
+- Erro em typecheck: corrigir no mesmo branch antes de abrir PR
+- Erro em teste existente (não relacionado à tarefa): criar `docs/demands/regression-{slug}.md` descrevendo o problema, não bloquear o PR
+- Ambiguidade na spec da issue: escolher a interpretação mais conservadora e documentar no PR body
+
+### Restrições
+- Nunca modificar `.github/workflows/` sem isso estar explícito na issue
+- Nunca modificar `CLAUDE.md`, `sync-config.json` ou arquivos de infraestrutura
+- Nunca commitar `.env`, secrets, arquivos binários grandes
+- Nunca fazer `git push --force`
 
 ## Variáveis de Ambiente (CI)
 ```
