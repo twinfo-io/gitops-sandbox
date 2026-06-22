@@ -28,6 +28,8 @@ jobs:
       github.event.pull_request.draft == false &&
       !contains(github.event.pull_request.labels.*.name, 'skip-review') &&
       !contains(github.event.pull_request.labels.*.name, 'agent-created') &&
+      !startsWith(github.event.pull_request.head.ref, 'agent/') &&
+      !contains(github.event.pull_request.body, '<!-- agent-created: true -->') &&
       !endsWith(github.actor, '[bot]')
     steps:
       - uses: actions/checkout@v4
@@ -173,17 +175,17 @@ jobs:
           if [ -n "$AGENT_PROMPT" ]; then
             CLAUDE_PROMPT="$AGENT_PROMPT"
           elif [ "$AGENT_LABEL" = "agent:generate-code" ]; then
-            CLAUDE_PROMPT="Read issue ${ISSUE_ID} from Linear. Analyze the codebase using the CLAUDE.md as context. Generate a complete implementation. Create branch feat/${ISSUE_ID,,}-implementation, commit, push, and open a PR. Update Linear issue status to In Review after."
+            CLAUDE_PROMPT="Read issue ${ISSUE_ID} from Linear. Analyze the codebase using CLAUDE.md as context. Generate a complete implementation. IMPORTANT: create branch named agent/${ISSUE_ID,,}-implementation (must start with 'agent/'). Commit and push. Open a PR — the PR body MUST start with the line: <!-- agent-created: true --> followed by the issue title and a link to ${ISSUE_ID}. Update Linear issue status to In Review after the PR is opened."
           elif [ "$AGENT_LABEL" = "agent:run-tests" ]; then
             CLAUDE_PROMPT="Run the test suite for this project (check package.json for test command). Post results as a comment on Linear issue ${ISSUE_ID}. Update issue to Done if all pass, In Progress if any fail."
           elif [ "$AGENT_LABEL" = "agent:security-review" ]; then
-            CLAUDE_PROMPT="Run /security-review on the latest changes in this repo. Post findings as sub-issues on Linear issue ${ISSUE_ID} with appropriate severity labels. Critical findings must block merge via GitHub status check."
+            CLAUDE_PROMPT="Run /security-review on the latest changes in this repo. Post findings as sub-issues on Linear issue ${ISSUE_ID} with appropriate severity labels. If you open a PR for any fix, the branch MUST start with 'agent/' and the PR body MUST start with: <!-- agent-created: true -->"
           elif [ "$AGENT_LABEL" = "agent:deploy" ]; then
             CLAUDE_PROMPT="Trigger the deploy pipeline for this project. Monitor status. Post result (success URL or failure logs) as comment on Linear issue ${ISSUE_ID} and update issue status accordingly."
           elif [ "$AGENT_LABEL" = "agent:code-review" ]; then
-            CLAUDE_PROMPT="Run /code-review on the latest PR diff. For each finding create a sub-issue on Linear under ${ISSUE_ID} with label agent-created. Auto-fixable findings get agent:generate-code label."
+            CLAUDE_PROMPT="Run /code-review on the latest PR diff. For each finding create a sub-issue on Linear under ${ISSUE_ID} with label agent-created. Auto-fixable findings get agent:generate-code label. Do NOT open any PRs yourself."
           else
-            CLAUDE_PROMPT="Execute the task described in Linear issue ${ISSUE_ID}. Label being processed: ${AGENT_LABEL}."
+            CLAUDE_PROMPT="Execute the task described in Linear issue ${ISSUE_ID}. Label being processed: ${AGENT_LABEL}. If you open any PR, the branch MUST start with 'agent/' and the PR body MUST include: <!-- agent-created: true -->"
           fi
 
           echo "[run-agent] Issue: $ISSUE_ID | Agent: $AGENT_LABEL"
