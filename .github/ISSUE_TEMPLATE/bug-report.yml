@@ -1,0 +1,74 @@
+name: Bug Report
+description: Comportamento incorreto no sistema GitOps ou em código gerado por agente
+labels: ["needs-human-review"]
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Para bugs no sistema de automação (loop de reviews, webhook não disparou, sync não aconteceu),
+        consulte o [RUNBOOK.md](../blob/main/docs/RUNBOOK.md) antes de abrir a issue.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Componente afetado
+      options:
+        - Webhook bridge (Vercel / linear-webhook.ts)
+        - GitHub Actions — auto-code-review
+        - GitHub Actions — gitops-sync
+        - GitHub Actions — run-agent (agente Claude)
+        - Detecção de demanda furtiva
+        - Sync Linear → GitHub (status de card)
+        - Código gerado por agente
+        - Outro
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: O que aconteceu
+      description: Descreva o comportamento incorreto. Inclua timestamps e IDs de run quando disponível.
+      placeholder: |
+        Adicionei label `agent:generate-code` na TWI-171 às 14:32.
+        O webhook apareceu nos logs do Vercel, mas nenhum run foi iniciado no GitHub Actions.
+        Run ID esperado não aparece em: https://github.com/twinfo-io/gitops-sandbox/actions
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamento esperado
+      placeholder: Um run deveria ter iniciado em < 5s após o webhook.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs relevantes
+      description: Cole logs do Vercel, GitHub Actions, ou output do Claude CLI.
+      render: shell
+
+  - type: input
+    id: run_id
+    attributes:
+      label: GitHub Actions Run ID (se aplicável)
+      placeholder: "27974913137"
+
+  - type: input
+    id: linear_issue
+    attributes:
+      label: Linear Issue ID (se aplicável)
+      placeholder: TWI-
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Investigação inicial
+      options:
+        - label: Consultei o RUNBOOK.md e não resolvi
+        - label: Verifiquei se o `GITHUB_TOKEN` e `LINEAR_WEBHOOK_SECRET` estão válidos
+        - label: Verifiquei os logs do Vercel (`vercel logs`)

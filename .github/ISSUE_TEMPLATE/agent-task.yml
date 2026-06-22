@@ -1,0 +1,78 @@
+name: Tarefa para Agente
+description: Descreva uma tarefa que o Claude deve executar autonomamente
+labels: []
+title: "[Agent] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Preencha essa issue com clareza — o Claude vai ler **exatamente** esse texto para executar a tarefa.
+        Quanto mais específico o critério de aceitação, melhor o resultado.
+
+  - type: input
+    id: linear_id
+    attributes:
+      label: Linear Issue ID
+      description: ID da issue correspondente no Linear (ex. TWI-123). Obrigatório para sync bidirecional.
+      placeholder: TWI-
+    validations:
+      required: true
+
+  - type: dropdown
+    id: agent_label
+    attributes:
+      label: Tipo de agente
+      description: Qual agente deve executar essa tarefa?
+      options:
+        - agent:generate-code
+        - agent:run-tests
+        - agent:code-review
+        - agent:security-review
+        - agent:deploy
+        - agent:create-specs
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto
+      description: O que o agente precisa saber sobre o problema. Seja específico sobre arquivos, comportamento atual e esperado.
+      placeholder: |
+        O módulo X faz Y. Precisamos que passe a fazer Z porque...
+        Arquivos relevantes: src/foo.ts, src/bar.ts
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Critérios de aceitação
+      description: Lista de checkboxes que o PR do agente deve satisfazer. O agente vai incluir esses critérios no body do PR.
+      placeholder: |
+        - [ ] Função `calculateFee` retorna 0 quando input é negativo
+        - [ ] Testes unitários cobrem edge cases de input vazio
+        - [ ] Nenhum TypeScript error introduzido
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Restrições (opcional)
+      description: O que o agente NÃO deve fazer. Arquivos intocáveis, padrões obrigatórios, etc.
+      placeholder: |
+        - Não modificar a assinatura pública de `FeeCalculator`
+        - Manter compatibilidade com Node 18
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Antes de criar essa issue
+      options:
+        - label: A spec está detalhada o suficiente para o agente executar sem ambiguidade
+          required: true
+        - label: Os critérios de aceitação são verificáveis (não subjetivos)
+          required: true
+        - label: Eu tenho permissão para adicionar a label `agent:*` escolhida (ver GOVERNANCE.md)
+          required: true

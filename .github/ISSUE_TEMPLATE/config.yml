@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Linear — projeto GitOps × Claude Agents
+    url: https://linear.app/twinfo-lifters/project/gitops-claude-agents-automacao-universal-e7fd936e4d6d
+    about: Issues de produto e rastreamento de trabalho ficam no Linear, não aqui.
+  - name: RUNBOOK.md — incidentes e rollback
+    url: https://github.com/twinfo-io/gitops-sandbox/blob/main/docs/RUNBOOK.md
+    about: Para problemas operacionais (loop de agent, webhook quebrado, segredo comprometido).

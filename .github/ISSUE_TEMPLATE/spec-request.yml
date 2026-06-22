@@ -1,0 +1,92 @@
+name: Spec / Nova Feature
+description: Proposta de nova funcionalidade ou evolução do sistema
+labels: []
+title: "[Spec] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use esse template para propor evoluções do sistema GitOps × Claude Agents.
+        Issues bem especificadas aqui podem ser passadas diretamente para `agent:create-specs`
+        para gerar a especificação técnica completa.
+
+  - type: input
+    id: linear_id
+    attributes:
+      label: Linear Issue ID (se já existir)
+      placeholder: TWI-
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema a resolver
+      description: Qual dor ou limitação essa feature endereça? Seja específico.
+      placeholder: |
+        Hoje o Vercel bridge só roteia para um repo fixo. Para disparar um agente
+        em outro repo, é necessário usar `gh workflow run` manualmente, o que quebra
+        o fluxo de "só adicionar uma label".
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Solução proposta
+      description: Como você imagina que isso deveria funcionar? Não precisa ser técnico.
+      placeholder: |
+        O webhook bridge deveria ler o repo-alvo de um campo na issue do Linear
+        (ex: campo customizado "GitHub Repo") ou de um arquivo sync-config.json
+        no repo referenciado.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Fase do roadmap
+      description: Em qual fase do roadmap isso se encaixa?
+      options:
+        - Fase 2 — Agents ativos
+        - Fase 3 — Ciclo auto-corretivo
+        - Fase 4 — Bridge multi-repo
+        - Fase 5 — Produção
+        - Novo (não está no roadmap)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: complexity
+    attributes:
+      label: Complexidade estimada
+      options:
+        - Pequena (< 1 dia)
+        - Média (1-3 dias)
+        - Grande (> 3 dias — requer breakdown em sub-issues)
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Critérios de aceitação
+      placeholder: |
+        - [ ] Adicionar label `agent:generate-code` em issue com campo "GitHub Repo: twinfo-io/outro-repo" dispara run no repo correto
+        - [ ] Fallback para repo padrão (gitops-sandbox) quando campo não preenchido
+        - [ ] Documentado no ONBOARDING.md
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: Riscos e dependências
+      placeholder: |
+        - Depende da Fase 2 estar estável
+        - Campo customizado no Linear requer configuração manual por workspace
+        - Mudança na Vercel Edge Function pode afetar latência do webhook
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Antes de criar
+      options:
+        - label: Discuti com o tech lead (para features de Fase 4+)
+        - label: Verifiquei que não existe issue similar no Linear ou aqui
