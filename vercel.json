@@ -1,0 +1,20 @@
+{
+  "framework": null,
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "edge"
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/linear-webhook",
+      "dest": "/api/linear-webhook.ts"
+    }
+  ],
+  "env": {
+    "LINEAR_WEBHOOK_SECRET": "@linear-webhook-secret",
+    "GITHUB_TOKEN": "@github-token",
+    "GITHUB_REPO_OWNER": "twinfo-io",
+    "GITHUB_REPO_NAME": "gitops-sandbox"
+  }
+}

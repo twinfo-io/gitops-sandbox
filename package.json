@@ -1,0 +1,16 @@
+{
+  "name": "gitops-sandbox",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GitOps × Claude Agents — Sandbox Twinfo",
+  "scripts": {
+    "dev": "vercel dev",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
