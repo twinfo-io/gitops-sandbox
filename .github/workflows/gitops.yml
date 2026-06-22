@@ -133,10 +133,8 @@ jobs:
               git config user.name "GitOps Bot"
               git config user.email "gitops@twinfo.io"
               git add docs/demands/
-              git commit -m "chore(gitops): link demand $NEW_ID [skip ci]
-
-Demanda furtiva detectada no merge e registrada no Linear.
-Arquivo: $NEW_PATH"
+              COMMIT_MSG="chore(gitops): link demand $NEW_ID [skip ci] -- Demanda furtiva: $NEW_PATH"
+              git commit -m "$COMMIT_MSG"
               git push origin main
               echo "[gitops-sync] ✅ $NEW_ID criado e commitado"
             fi
