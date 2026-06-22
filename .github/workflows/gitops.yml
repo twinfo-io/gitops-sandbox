@@ -85,28 +85,65 @@ jobs:
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          chmod +x scripts/create-demand.sh
           echo "[gitops-sync] Branch: $BRANCH_NAME"
 
-          # Tenta extrair Linear ID do nome da branch (ex: feat/TWI-123-slug ou garibaldijunior/twi-123-slug)
-          LINEAR_ID=$(echo "$BRANCH_NAME" | grep -oiP 'TWI-\d+' | head -1 | tr '[:lower:]' '[:upper:]')
-
-          # Fallback: tenta extrair do body do PR
+          # ── 1. Tenta fechar card existente ────────────────────────────────
+          LINEAR_ID=$(echo "$BRANCH_NAME" | grep -oiP 'TWI-\d+' | head -1 | tr '[:lower:]' '[:upper:]' || true)
           if [ -z "$LINEAR_ID" ]; then
-            LINEAR_ID=$(echo "$PR_BODY" | grep -oP 'LINEAR_ID:\s*\K(TWI-\d+)' | head -1)
+            LINEAR_ID=$(echo "$PR_BODY" | grep -oP 'LINEAR_ID:\s*\K(TWI-\d+)' | head -1 || true)
           fi
 
           if [ -n "$LINEAR_ID" ]; then
-            echo "[gitops-sync] Found $LINEAR_ID — marking Done in Linear"
-            # TODO: npx gitops sync --issue $LINEAR_ID
-            # Placeholder: chama Linear API via curl
-            curl -s -X POST https://api.linear.app/graphql \
+            echo "[gitops-sync] Fechando $LINEAR_ID no Linear..."
+            curl -sf -X POST https://api.linear.app/graphql \
               -H "Authorization: $LINEAR_API_KEY" \
               -H "Content-Type: application/json" \
-              -d "{\"query\": \"mutation { issueUpdate(id: \\\"${LINEAR_ID}\\\", input: { stateId: \\\"06527813-6267-48e1-961a-0548a6781bb7\\\" }) { success } }\"}" \
-              || echo "[gitops-sync] Warning: Linear API call failed (issue may use ID not UUID)"
-          else
-            echo "[gitops-sync] No Linear ID found — stealth demand detected"
-            echo "[gitops-sync] TODO: npx gitops demand (TWI-158/TWI-159)"
+              -d "$(jq -n --arg id "$LINEAR_ID" --arg stateId "06527813-6267-48e1-961a-0548a6781bb7" \
+                '{query: "mutation($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }", variables: {id: $id, input: {stateId: $stateId}}}')" \
+              | jq -r 'if .data.issueUpdate.success then "[gitops-sync] ✅ \($ENV.LINEAR_ID) marcado Done" else "[gitops-sync] ⚠️  update falhou: \(.)" end'
+            exit 0
+          fi
+
+          # ── 2. Sem Linear ID → demanda furtiva ───────────────────────────
+          echo "[gitops-sync] Sem LINEAR_ID — buscando demandas furtivas em docs/demands/..."
+          CREATED_ANY=false
+
+          for DEMAND_FILE in docs/demands/*.md; do
+            [ -f "$DEMAND_FILE" ] || continue
+            # Ignora README e arquivos que já têm ID
+            [[ "$DEMAND_FILE" == *"README"* ]] && continue
+            EXISTING=$(grep -oP 'LINEAR_ID:\s*\K(TWI-\d+)' "$DEMAND_FILE" 2>/dev/null || true)
+            [ -n "$EXISTING" ] && continue
+
+            echo "[gitops-sync] Demanda furtiva detectada: $DEMAND_FILE"
+            NEW_ID=$(./scripts/create-demand.sh "$DEMAND_FILE")
+
+            if [ -n "$NEW_ID" ]; then
+              CREATED_ANY=true
+              # Atualiza o arquivo com o novo ID
+              sed -i "s/^LINEAR_ID:[[:space:]]*/LINEAR_ID: $NEW_ID/" "$DEMAND_FILE"
+
+              # Renomeia o arquivo com o ID Linear
+              BASENAME=$(basename "$DEMAND_FILE" .md)
+              NEW_PATH="docs/demands/${NEW_ID,,}-${BASENAME}.md"
+              mv "$DEMAND_FILE" "$NEW_PATH"
+              echo "[gitops-sync] Arquivo renomeado: $NEW_PATH"
+
+              git config user.name "GitOps Bot"
+              git config user.email "gitops@twinfo.io"
+              git add docs/demands/
+              git commit -m "chore(gitops): link demand $NEW_ID [skip ci]
+
+Demanda furtiva detectada no merge e registrada no Linear.
+Arquivo: $NEW_PATH"
+              git push origin main
+              echo "[gitops-sync] ✅ $NEW_ID criado e commitado"
+            fi
+          done
+
+          if [ "$CREATED_ANY" = false ]; then
+            echo "[gitops-sync] Nenhuma demanda furtiva pendente encontrada"
           fi
 
   # ─── Execução de Agent via workflow_dispatch (disparado pelo webhook) ─────────
