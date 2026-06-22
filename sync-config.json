@@ -1,42 +1,61 @@
 {
-  "projectName": "gitops-sandbox",
+  "_meta": {
+    "description": "Configuração do sistema GitOps × Claude Agents para este repositório.",
+    "doc": "Cada projeto da org tem seu próprio sync-config.json. Nunca editar os IDs manualmente — usar `npx gitops init` para gerar.",
+    "linear_project_url": "https://linear.app/twinfo-lifters/project/gitops-claude-agents-automacao-universal-e7fd936e4d6d",
+    "repo": "https://github.com/twinfo-io/gitops-sandbox"
+  },
+
+  "projectName": "GitOps × Claude Agents — Sandbox",
+
   "linear": {
+    "_comment": "IDs do workspace Twinfo Lifters no Linear. Não alterar sem rodar npx gitops init.",
     "teamId": "bb2552ad-78a3-4b20-a1d4-ca01aab0a931",
-    "projectId": "SUBSTITUIR_COM_ID_DO_PROJETO_LINEAR",
+    "teamName": "Twinfo Lifters",
+    "projectId": "0b836537-0ca6-499d-af9d-7cc9fdaa81c6",
+    "projectName": "GitOps × Claude Agents — Automação Universal",
     "states": {
-      "backlog": "ef714f62-e0d2-4078-857c-105fa0374948",
-      "todo": "8118d044-0106-4e63-888b-57d2e4e05759",
+      "backlog":    "ef714f62-e0d2-4078-857c-105fa0374948",
+      "todo":       "8118d044-0106-4e63-888b-57d2e4e05759",
       "inProgress": "146b11d1-d345-4f6f-aad1-d5783e8de924",
-      "done": "06527813-6267-48e1-961a-0548a6781bb7"
+      "done":       "06527813-6267-48e1-961a-0548a6781bb7"
     }
   },
+
   "git": {
+    "_comment": "Identidade do bot que faz commits automáticos de sync. Não usar conta pessoal.",
     "botName": "GitOps Bot",
     "botEmail": "gitops@twinfo.io",
     "mainBranch": "main"
   },
+
   "paths": {
-    "specs": ".specs/SPECS.md",
-    "workplan": ".specs/WORKPLAN.md",
+    "_comment": "Caminhos locais de cada tipo de documento. Relativos à raiz do repo.",
+    "specs":     ".specs/SPECS.md",
+    "workplan":  ".specs/WORKPLAN.md",
     "checklist": "docs/specs/checklist.md",
-    "demands": "docs/demands/",
-    "epics": "docs/epics/",
-    "sprints": "docs/sprints/"
+    "demands":   "docs/demands/",
+    "epics":     "docs/epics/",
+    "sprints":   "docs/sprints/"
   },
+
   "agents": {
+    "_comment": "Labels que disparam agents Claude automaticamente via webhook Linear → GitHub Actions.",
     "enabled": true,
     "labelPrefix": "agent:",
-    "skills": [
-      "generate-code",
-      "run-tests",
-      "security-review",
-      "deploy",
-      "code-review"
-    ],
     "autoReviewOnPR": true,
-    "maxFindingsPerReview": 20
+    "maxFindingsPerReview": 20,
+    "skills": {
+      "generate-code":   "Lê spec da issue no Linear → analisa codebase → abre PR completo",
+      "run-tests":       "Executa suite de testes → posta resultado como comment no Linear",
+      "security-review": "Audita código → findings categorizados no Linear com severidade",
+      "deploy":          "Aciona pipeline de deploy → atualiza status da issue no Linear",
+      "code-review":     "Revisa PR aberto → cria sub-issues no Linear para cada finding"
+    }
   },
+
   "stealth": {
+    "_comment": "Demandas furtivas: commits sem Linear ID são detectados e registrados automaticamente.",
     "enabled": true,
     "demandsDir": "docs/demands/",
     "idempotencyWindow": 3600
