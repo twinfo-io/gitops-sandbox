@@ -55,8 +55,8 @@ jobs:
           LINEAR_ID=$(echo "$PR_BODY" | grep -oP 'LINEAR_ID:\s*\K(TWI-\d+)' | head -1)
 
           claude --print \
+            --dangerously-skip-permissions \
             --allowedTools "Bash,Read,mcp__github__create_pull_request_review,mcp__github__add_issue_comment,mcp__claude_ai_Linear__save_issue,mcp__claude_ai_Linear__list_issues,mcp__claude_ai_Linear__save_comment" \
-            --no-interactive \
             "Review the changes in PR #${PR_NUMBER} at ${PR_URL}. Run /code-review and /security-review on the diff. For each finding: create a Linear sub-issue under parent ${LINEAR_ID:-'(no parent — create standalone)'} with label agent-created. Auto-fixable findings also get label agent:generate-code. Security findings get label agent:security-review. Post a PR review summary. Critical findings must use CHANGES_REQUESTED review state."
 
   # ─── GitOps Sync: merge → fecha card no Linear ───────────────────────────────
@@ -195,6 +195,6 @@ jobs:
 
           echo "[run-agent] Issue: $ISSUE_ID | Agent: $AGENT_LABEL"
           claude --print \
+            --dangerously-skip-permissions \
             --allowedTools "Bash,Read,Edit,Write,mcp__github__create_pull_request,mcp__github__create_branch,mcp__github__push_files,mcp__github__add_issue_comment,mcp__github__create_pull_request_review,mcp__claude_ai_Linear__save_issue,mcp__claude_ai_Linear__save_comment,mcp__claude_ai_Linear__get_issue,mcp__claude_ai_Linear__list_issues" \
-            --no-interactive \
             "$AGENT_PROMPT"
