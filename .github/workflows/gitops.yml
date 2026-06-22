@@ -75,7 +75,7 @@ jobs:
           node-version: '20'
 
       - name: Install deps
-        run: npm ci --if-present
+        run: '[ -f package-lock.json ] && npm ci || echo "[gitops-sync] No package-lock.json — skipping npm ci"'
 
       - name: Sync Linear (close card + detect stealth demand)
         env:
