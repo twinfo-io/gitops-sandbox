@@ -1,0 +1,165 @@
+name: GitOps × Claude Agents
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, ready_for_review, closed]
+  workflow_dispatch:
+    inputs:
+      issue_id:
+        description: 'Linear Issue ID (ex: TWI-123)'
+        required: true
+      agent_label:
+        description: 'Agent a executar (ex: agent:generate-code)'
+        required: true
+      agent_prompt:
+        description: 'Prompt completo para o Claude (opcional — usa padrão se vazio)'
+        required: false
+
+jobs:
+  # ─── Auto Code Review em todo PR aberto/atualizado ───────────────────────────
+  auto-code-review:
+    name: Claude Code Review
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action != 'closed' &&
+      github.event.pull_request.draft == false &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-review') &&
+      !contains(github.event.pull_request.labels.*.name, 'agent-created') &&
+      !endsWith(github.actor, '[bot]')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run Claude Code Review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # Extrai LINEAR_ID do body do PR
+          LINEAR_ID=$(echo "$PR_BODY" | grep -oP 'LINEAR_ID:\s*\K(TWI-\d+)' | head -1)
+
+          claude --print \
+            --allowedTools "Bash,Read,mcp__github__create_pull_request_review,mcp__github__add_issue_comment,mcp__claude_ai_Linear__save_issue,mcp__claude_ai_Linear__list_issues,mcp__claude_ai_Linear__save_comment" \
+            --no-interactive \
+            "Review the changes in PR #${PR_NUMBER} at ${PR_URL}. Run /code-review and /security-review on the diff. For each finding: create a Linear sub-issue under parent ${LINEAR_ID:-'(no parent — create standalone)'} with label agent-created. Auto-fixable findings also get label agent:generate-code. Security findings get label agent:security-review. Post a PR review summary. Critical findings must use CHANGES_REQUESTED review state."
+
+  # ─── GitOps Sync: merge → fecha card no Linear ───────────────────────────────
+  gitops-sync:
+    name: GitOps Sync → Linear
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        run: npm ci --if-present
+
+      - name: Sync Linear (close card + detect stealth demand)
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          echo "[gitops-sync] Branch: $BRANCH_NAME"
+
+          # Tenta extrair Linear ID do nome da branch (ex: feat/TWI-123-slug ou garibaldijunior/twi-123-slug)
+          LINEAR_ID=$(echo "$BRANCH_NAME" | grep -oiP 'TWI-\d+' | head -1 | tr '[:lower:]' '[:upper:]')
+
+          # Fallback: tenta extrair do body do PR
+          if [ -z "$LINEAR_ID" ]; then
+            LINEAR_ID=$(echo "$PR_BODY" | grep -oP 'LINEAR_ID:\s*\K(TWI-\d+)' | head -1)
+          fi
+
+          if [ -n "$LINEAR_ID" ]; then
+            echo "[gitops-sync] Found $LINEAR_ID — marking Done in Linear"
+            # TODO: npx gitops sync --issue $LINEAR_ID
+            # Placeholder: chama Linear API via curl
+            curl -s -X POST https://api.linear.app/graphql \
+              -H "Authorization: $LINEAR_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"query\": \"mutation { issueUpdate(id: \\\"${LINEAR_ID}\\\", input: { stateId: \\\"06527813-6267-48e1-961a-0548a6781bb7\\\" }) { success } }\"}" \
+              || echo "[gitops-sync] Warning: Linear API call failed (issue may use ID not UUID)"
+          else
+            echo "[gitops-sync] No Linear ID found — stealth demand detected"
+            echo "[gitops-sync] TODO: npx gitops demand (TWI-158/TWI-159)"
+          fi
+
+  # ─── Execução de Agent via workflow_dispatch (disparado pelo webhook) ─────────
+  run-agent:
+    name: Run Claude Agent
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Execute Claude Agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          ISSUE_ID: ${{ github.event.inputs.issue_id }}
+          AGENT_LABEL: ${{ github.event.inputs.agent_label }}
+          AGENT_PROMPT: ${{ github.event.inputs.agent_prompt }}
+        run: |
+          # Monta prompt padrão se agent_prompt não fornecido
+          if [ -z "$AGENT_PROMPT" ]; then
+            case "$AGENT_LABEL" in
+              "agent:generate-code")
+                AGENT_PROMPT="Read issue ${ISSUE_ID} from Linear. Analyze the codebase using the CLAUDE.md as context. Generate a complete implementation. Create branch feat/${ISSUE_ID,,}-implementation, commit, push, and open a PR. Update Linear issue status to In Review after."
+                ;;
+              "agent:run-tests")
+                AGENT_PROMPT="Run the test suite for this project (check package.json for test command). Post results as a comment on Linear issue ${ISSUE_ID}. Update issue to Done if all pass, In Progress if any fail."
+                ;;
+              "agent:security-review")
+                AGENT_PROMPT="Run /security-review on the latest changes in this repo. Post findings as sub-issues on Linear issue ${ISSUE_ID} with appropriate severity labels. Critical findings must block merge via GitHub status check."
+                ;;
+              "agent:deploy")
+                AGENT_PROMPT="Trigger the deploy pipeline for this project. Monitor status. Post result (success URL or failure logs) as comment on Linear issue ${ISSUE_ID} and update issue status accordingly."
+                ;;
+              "agent:code-review")
+                AGENT_PROMPT="Run /code-review on the latest PR diff. For each finding create a sub-issue on Linear under ${ISSUE_ID} with label agent-created. Auto-fixable findings get agent:generate-code label."
+                ;;
+              *)
+                AGENT_PROMPT="Execute the task described in Linear issue ${ISSUE_ID}. Label being processed: ${AGENT_LABEL}."
+                ;;
+            esac
+          fi
+
+          echo "[run-agent] Issue: $ISSUE_ID | Agent: $AGENT_LABEL"
+          claude --print \
+            --allowedTools "Bash,Read,Edit,Write,mcp__github__create_pull_request,mcp__github__create_branch,mcp__github__push_files,mcp__github__add_issue_comment,mcp__github__create_pull_request_review,mcp__claude_ai_Linear__save_issue,mcp__claude_ai_Linear__save_comment,mcp__claude_ai_Linear__get_issue,mcp__claude_ai_Linear__list_issues" \
+            --no-interactive \
+            "$AGENT_PROMPT"

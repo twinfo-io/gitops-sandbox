@@ -1,0 +1,44 @@
+{
+  "projectName": "gitops-sandbox",
+  "linear": {
+    "teamId": "bb2552ad-78a3-4b20-a1d4-ca01aab0a931",
+    "projectId": "SUBSTITUIR_COM_ID_DO_PROJETO_LINEAR",
+    "states": {
+      "backlog": "ef714f62-e0d2-4078-857c-105fa0374948",
+      "todo": "8118d044-0106-4e63-888b-57d2e4e05759",
+      "inProgress": "146b11d1-d345-4f6f-aad1-d5783e8de924",
+      "done": "06527813-6267-48e1-961a-0548a6781bb7"
+    }
+  },
+  "git": {
+    "botName": "GitOps Bot",
+    "botEmail": "gitops@twinfo.io",
+    "mainBranch": "main"
+  },
+  "paths": {
+    "specs": ".specs/SPECS.md",
+    "workplan": ".specs/WORKPLAN.md",
+    "checklist": "docs/specs/checklist.md",
+    "demands": "docs/demands/",
+    "epics": "docs/epics/",
+    "sprints": "docs/sprints/"
+  },
+  "agents": {
+    "enabled": true,
+    "labelPrefix": "agent:",
+    "skills": [
+      "generate-code",
+      "run-tests",
+      "security-review",
+      "deploy",
+      "code-review"
+    ],
+    "autoReviewOnPR": true,
+    "maxFindingsPerReview": 20
+  },
+  "stealth": {
+    "enabled": true,
+    "demandsDir": "docs/demands/",
+    "idempotencyWindow": 3600
+  }
+}
