@@ -155,10 +155,14 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install deps
+        run: npm ci
+
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
       - name: Execute Claude Agent
+        id: run-claude
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -192,3 +196,13 @@ jobs:
           printf '%s' "$CLAUDE_PROMPT" | claude --print \
             --dangerously-skip-permissions \
             --allowedTools "Bash,Read,Edit,Write,mcp__github__create_pull_request,mcp__github__create_branch,mcp__github__push_files,mcp__github__add_issue_comment,mcp__github__create_pull_request_review,mcp__claude_ai_Linear__save_issue,mcp__claude_ai_Linear__save_comment,mcp__claude_ai_Linear__get_issue,mcp__claude_ai_Linear__list_issues"
+
+      - name: Report result to Linear
+        if: always()
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          ISSUE_ID: ${{ github.event.inputs.issue_id }}
+          AGENT_LABEL: ${{ github.event.inputs.agent_label }}
+          AGENT_STATUS: ${{ steps.run-claude.outcome == 'success' && 'success' || 'failure' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: npx tsx src/scripts/report-result.ts
