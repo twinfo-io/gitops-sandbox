@@ -6,10 +6,15 @@
   "scripts": {
     "dev": "vercel dev",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "sync": "tsx src/scripts/sync-project.ts",
+    "sync:pull": "tsx src/scripts/sync-project.ts --pull",
+    "sync:push": "tsx src/scripts/sync-project.ts --push",
+    "sync:both": "tsx src/scripts/sync-project.ts --both"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   }
