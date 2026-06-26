@@ -10,7 +10,9 @@
     "sync": "tsx src/scripts/sync-project.ts",
     "sync:pull": "tsx src/scripts/sync-project.ts --pull",
     "sync:push": "tsx src/scripts/sync-project.ts --push",
-    "sync:both": "tsx src/scripts/sync-project.ts --both"
+    "sync:both": "tsx src/scripts/sync-project.ts --both",
+    "parse-pr": "tsx src/scripts/parse-pr.ts",
+    "create-demand": "tsx src/scripts/create-demand.ts"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

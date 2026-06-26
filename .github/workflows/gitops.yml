@@ -87,7 +87,6 @@ jobs:
           BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          chmod +x scripts/create-demand.sh
           echo "[gitops-sync] Branch: $BRANCH_NAME"
 
           # ── 1. Tenta fechar card existente ────────────────────────────────
@@ -119,14 +118,11 @@ jobs:
             [ -n "$EXISTING" ] && continue
 
             echo "[gitops-sync] Demanda furtiva detectada: $DEMAND_FILE"
-            NEW_ID=$(./scripts/create-demand.sh "$DEMAND_FILE")
+            NEW_ID=$(npx tsx src/scripts/create-demand.ts "$DEMAND_FILE")
 
             if [ -n "$NEW_ID" ]; then
               CREATED_ANY=true
-              # Atualiza o arquivo com o novo ID
-              sed -i "s/^LINEAR_ID:[[:space:]]*/LINEAR_ID: $NEW_ID/" "$DEMAND_FILE"
-
-              # Renomeia o arquivo com o ID Linear
+              # Renomeia o arquivo com o ID Linear (LINEAR_ID já foi escrito pelo script TS)
               BASENAME=$(basename "$DEMAND_FILE" .md)
               NEW_PATH="docs/demands/${NEW_ID,,}-${BASENAME}.md"
               mv "$DEMAND_FILE" "$NEW_PATH"
