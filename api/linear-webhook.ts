@@ -20,6 +20,17 @@ const AGENT_LABELS = new Set([
   'agent:create-specs',
 ])
 
+const SKILL_LABEL_PREFIX = 'skill:'
+
+interface LinearLabel {
+  id: string
+  name: string
+}
+
+function isDispatchable(name: string): boolean {
+  return AGENT_LABELS.has(name) || name.startsWith(SKILL_LABEL_PREFIX)
+}
+
 async function verifyLinearSignature(
   request: Request,
   body: string
@@ -103,23 +114,21 @@ export default async function handler(request: Request): Promise<Response> {
     })
   }
 
-  const issue  = event.data as Record<string, unknown>
-  const labels = (issue.labels as Array<{ name: string }> | undefined) ?? []
+  const issue   = event.data as Record<string, unknown>
+  const labels  = (issue.labels as LinearLabel[] | undefined) ?? []
   const issueId = issue.identifier as string
 
-  // Filtra labels agent:* adicionadas agora
-  const addedLabels = (event.updatedFrom
+  // Filtra labels agent:*/skill:* adicionadas neste evento
+  const addedLabels = event.updatedFrom
     ? (() => {
         const prev = ((event.updatedFrom as Record<string, unknown>).labelIds ?? []) as string[]
-        const curr = ((issue.labelIds ?? []) as string[])
-        // IDs adicionadas = estão em curr mas não em prev
-        const added = curr.filter((id: string) => !prev.includes(id))
-        return labels.filter(l => added.includes((l as any).id)).map(l => l.name)
+        const curr = (issue.labelIds ?? []) as string[]
+        const addedIds = new Set(curr.filter(id => !prev.includes(id)))
+        return labels.filter(l => addedIds.has(l.id)).map(l => l.name)
       })()
     : labels.map(l => l.name)
-  )
 
-  const agentLabels = addedLabels.filter(name => AGENT_LABELS.has(name))
+  const agentLabels = addedLabels.filter(isDispatchable)
 
   if (agentLabels.length === 0) {
     return new Response(JSON.stringify({ skipped: true, reason: 'no agent labels added' }), {

@@ -180,6 +180,9 @@ jobs:
             CLAUDE_PROMPT="Trigger the deploy pipeline for this project. Monitor status. Post result (success URL or failure logs) as comment on Linear issue ${ISSUE_ID} and update issue status accordingly."
           elif [ "$AGENT_LABEL" = "agent:code-review" ]; then
             CLAUDE_PROMPT="Run /code-review on the latest PR diff. For each finding create a sub-issue on Linear under ${ISSUE_ID} with label agent-created. Auto-fixable findings get agent:generate-code label. Do NOT open any PRs yourself."
+          elif [[ "$AGENT_LABEL" == skill:* ]]; then
+            SKILL_NAME="${AGENT_LABEL#skill:}"
+            CLAUDE_PROMPT="Read Linear issue ${ISSUE_ID}. Execute the /${SKILL_NAME} skill using CLAUDE.md as context. If the skill produces files or a PR: branch MUST start with 'agent/' and PR body MUST start with: <!-- agent-created: true --> Update the Linear issue status when complete."
           else
             CLAUDE_PROMPT="Execute the task described in Linear issue ${ISSUE_ID}. Label being processed: ${AGENT_LABEL}. If you open any PR, the branch MUST start with 'agent/' and the PR body MUST include: <!-- agent-created: true -->"
           fi
