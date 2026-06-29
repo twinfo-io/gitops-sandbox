@@ -109,6 +109,16 @@ Ciclo completo: **label adicionada → PR aberto → card fechado**, sem tocar n
   ISSUE_TEMPLATE/           # templates para issues GitHub
   pull_request_template.md  # template para PRs (extrai LINEAR_ID)
 
+src/
+  scripts/
+    sync-project.ts         # sync bidirecional Linear ↔ Git (--pull / --push / --both)
+    parse-pr.ts             # parser Q&A do PR template → objeto estruturado
+    create-demand.ts        # auto-criação de issue furtiva com epic + sprint lookup
+    report-result.ts        # feedback loop determinístico: resultado do agent → Linear
+
+api/
+  linear-webhook.ts         # Vercel Edge Function — bridge Linear → GitHub (HMAC-SHA256)
+
 docs/
   RUNBOOK.md                # procedimentos operacionais: rollback, kill-switch, segredos
   ONBOARDING.md             # checklist para conectar novo repo ao sistema
@@ -119,12 +129,6 @@ docs/
 .specs/
   SPECS.md                  # especificação técnica do sistema
   WORKPLAN.md               # plano de trabalho sincronizado com Linear
-
-api/
-  linear-webhook.ts         # Vercel Edge Function — bridge Linear → GitHub
-
-scripts/
-  create-demand.sh          # cria issue no Linear a partir de arquivo .md
 
 CLAUDE.md                   # contexto para agents: stack, comandos, convenções, restrições
 sync-config.json            # IDs do projeto Linear (teamId, stateIds)
@@ -198,10 +202,12 @@ Incidente? Ver [RUNBOOK.md](docs/RUNBOOK.md). Dúvida de permissão? Ver [GOVERN
 
 | Fase | Status |
 |---|---|
-| Fase 1 — Fundação (pipeline + labels + bridge + GitOps passivo) | ✅ Concluída |
-| Fase 2 — Agents ativos (generate-code, run-tests, security-review, code-review) | 🔄 Infra pronta — aguarda crédito Anthropic |
-| Fase 3 — Ciclo auto-corretivo (review → findings → fix loop autônomo) | 📋 Spec pendente (TWI-182–185) |
-| Fase 4 — Bridge multi-repo (Vercel roteia para N repos dinamicamente) | 📋 Planejada |
+| Fase 1 — Fundação GitOps (sync-project.ts, PR template, CI/CD pipeline, Linear Documents API) | ✅ Concluída |
+| Fase 2 — Detecção de demandas furtivas (parse-pr.ts, create-demand.ts, epic + sprint lookup) | ✅ Concluída |
+| Fase 3 — Taxonomia Tags × Claude (skill:*, webhook HMAC, 14 testes) | ✅ Concluída |
+| Fase 4 — Execução autônoma (report-result.ts, feedback loop, 31 testes) | ✅ Infra completa — aguarda crédito Anthropic para E2E |
+| Fase 5 — Validação & Governança (testes E2E ponta a ponta, guia operacional) | 🔄 Em andamento |
+| Fase 6 — Ciclo auto-corretivo (review → findings → fix loop autônomo) | 📋 Spec pendente (TWI-182–185) |
 
 Ver [ROADMAP.md](docs/ROADMAP.md) para detalhes e próximos passos por fase.
 
