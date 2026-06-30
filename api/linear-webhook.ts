@@ -58,9 +58,34 @@ async function verifyLinearSignature(
   return signature === expected
 }
 
-async function dispatchWorkflow(issueId: string, agentLabel: string): Promise<void> {
+function resolveTarget(event: Record<string, unknown>): { owner: string; repo: string } | null {
+  const repoMapStr = process.env.REPO_MAP
+  if (repoMapStr) {
+    let repoMap: Record<string, string> = {}
+    try { repoMap = JSON.parse(repoMapStr) } catch {
+      console.error('[webhook] REPO_MAP inválido — usando fallback single-repo')
+    }
+    const issue     = event.data as Record<string, unknown>
+    const projectId = issue.projectId as string | undefined
+    const teamId    = issue.teamId    as string | undefined
+    const slug      = (projectId && repoMap[projectId]) ?? (teamId && repoMap[teamId]) ?? null
+    if (slug) {
+      const sep = slug.indexOf('/')
+      if (sep > 0) return { owner: slug.slice(0, sep), repo: slug.slice(sep + 1) }
+    }
+    console.error(`[webhook] Projeto/team não mapeado (projectId=${projectId}, teamId=${teamId})`)
+  }
+
+  // Fallback: single-repo via env vars (config anterior)
   const owner = process.env.GITHUB_REPO_OWNER
   const repo  = process.env.GITHUB_REPO_NAME
+  if (owner && repo) return { owner, repo }
+
+  return null
+}
+
+async function dispatchWorkflow(issueId: string, agentLabel: string, target: { owner: string; repo: string }): Promise<void> {
+  const { owner, repo } = target
   const token = process.env.GITHUB_TOKEN
 
   const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/gitops.yml/dispatches`
@@ -136,13 +161,21 @@ export default async function handler(request: Request): Promise<Response> {
     })
   }
 
-  // Dispara um workflow por label agent:* adicionada
+  const target = resolveTarget(event)
+  if (!target) {
+    return new Response(
+      JSON.stringify({ skipped: true, reason: 'no target repo resolved — set REPO_MAP or GITHUB_REPO_OWNER/GITHUB_REPO_NAME' }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Dispara um workflow por label agent:*/skill:* adicionada
   const dispatched: string[] = []
   const errors: string[] = []
 
   for (const label of agentLabels) {
     try {
-      await dispatchWorkflow(issueId, label)
+      await dispatchWorkflow(issueId, label, target)
       dispatched.push(label)
       console.log(`[webhook] Dispatched ${label} for ${issueId}`)
     } catch (err) {

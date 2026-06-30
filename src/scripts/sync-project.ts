@@ -18,7 +18,7 @@ const ROOT = resolve(fileURLToPath(import.meta.url), '../../..')
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-interface SyncConfig {
+export interface SyncConfig {
   projectName: string
   linear: {
     teamId: string
@@ -35,7 +35,7 @@ interface SyncConfig {
   }
 }
 
-interface LinearIssue {
+export interface LinearIssue {
   id: string
   identifier: string
   title: string
@@ -203,7 +203,7 @@ async function push(config: SyncConfig): Promise<void> {
 
 // ── Markdown generators ────────────────────────────────────────────────────────
 
-function generateWorkplan(
+export function generateWorkplan(
   config: SyncConfig,
   issues: LinearIssue[],
   sprint: string | null
@@ -236,7 +236,7 @@ function generateWorkplan(
   return lines.join('\n')
 }
 
-function generateEpicDoc(epic: LinearIssue, allIssues: LinearIssue[]): string {
+export function generateEpicDoc(epic: LinearIssue, allIssues: LinearIssue[]): string {
   const children = allIssues.filter(i => i.parent?.identifier === epic.identifier)
   const lines: string[] = [
     `# ${epic.identifier} — ${epic.title}`,
@@ -258,7 +258,7 @@ function generateEpicDoc(epic: LinearIssue, allIssues: LinearIssue[]): string {
   return lines.join('\n')
 }
 
-function generateSprintDoc(sprintName: string, issues: LinearIssue[]): string {
+export function generateSprintDoc(sprintName: string, issues: LinearIssue[]): string {
   const today = new Date().toISOString().split('T')[0]
   const lines: string[] = [
     `# Sprint: ${sprintName}`,
@@ -313,7 +313,9 @@ async function main(): Promise<void> {
   process.exit(1)
 }
 
-main().catch(err => {
-  console.error('[sync] Erro:', (err as Error).message)
-  process.exit(1)
-})
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch(err => {
+    console.error('[sync] Erro:', (err as Error).message)
+    process.exit(1)
+  })
+}

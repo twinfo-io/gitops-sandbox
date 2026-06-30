@@ -34,7 +34,7 @@ interface SyncConfig {
   }
 }
 
-interface DemandFields {
+export interface DemandFields {
   linearId: string | null
   title: string
   type: string
@@ -62,9 +62,9 @@ async function linearQuery<T>(query: string, variables: Record<string, unknown>)
 
 // ── Parse do arquivo de demanda ───────────────────────────────────────────────
 
-function parseDemandFile(content: string): DemandFields {
+export function parseDemandFile(content: string): DemandFields {
   const field = (key: string): string | null => {
-    const m = new RegExp(`^${key}:[\\s]*(.+?)\\s*$`, 'm').exec(content)
+    const m = new RegExp(`^${key}:[ \\t]*(.+?)[ \\t]*$`, 'm').exec(content)
     const v = m?.[1]?.trim()
     return v && v !== '' ? v : null
   }
@@ -231,7 +231,9 @@ async function main(): Promise<void> {
   process.stdout.write(linearId + '\n')
 }
 
-main().catch(err => {
-  console.error('[create-demand] Erro:', (err as Error).message)
-  process.exit(1)
-})
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch(err => {
+    console.error('[create-demand] Erro:', (err as Error).message)
+    process.exit(1)
+  })
+}
