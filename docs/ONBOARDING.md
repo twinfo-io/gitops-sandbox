@@ -35,11 +35,15 @@ gh secret set LINEAR_API_KEY    --repo $REPO
 git clone https://github.com/twinfo-io/gitops-sandbox /tmp/gitops-ref
 
 # No repo alvo, copiar:
-cp /tmp/gitops-ref/.github/workflows/gitops.yml    .github/workflows/
+cp /tmp/gitops-ref/.github/workflows/gitops.yml     .github/workflows/
 cp /tmp/gitops-ref/.github/pull_request_template.md .github/
-cp /tmp/gitops-ref/scripts/create-demand.sh         scripts/
-chmod +x scripts/create-demand.sh
+cp -r /tmp/gitops-ref/src                           .
+cp /tmp/gitops-ref/package.json                     .
+cp /tmp/gitops-ref/tsconfig.json                    .
 mkdir -p docs/demands docs/epics docs/sprints
+
+# Instalar dependências (inclui tsx para rodar os scripts)
+npm install
 ```
 
 ---
@@ -103,12 +107,13 @@ cp /tmp/gitops-ref/CLAUDE.md .
 
 ```bash
 LINEAR_API_KEY="lin_api_..."
+WEBHOOK_URL="https://SEU-PROJETO.vercel.app/api/linear-webhook"  # URL da sua Vercel deployment
 
 curl -s -X POST https://api.linear.app/graphql \
   -H "Authorization: $LINEAR_API_KEY" \
   -H "Content-Type: application/json" \
   -d "$(jq -n \
-    --arg url "https://gitops-sandbox.vercel.app/api/linear-webhook" \
+    --arg url "$WEBHOOK_URL" \
     --arg teamId "bb2552ad-78a3-4b20-a1d4-ca01aab0a931" \
     '{query: "mutation($input: WebhookCreateInput!) { webhookCreate(input: $input) { success webhook { id secret } } }",
       variables: {input: {url: $url, teamId: $teamId, resourceTypes: ["Issue"], label: "GitOps Bridge", enabled: true}}}')" \
@@ -123,11 +128,26 @@ Guardar o `secret` retornado — ele é exibido **apenas uma vez**.
 
 O Vercel precisa saber para qual repo direcionar o `workflow_dispatch`.
 
-Hoje a Vercel Edge Function usa `GITHUB_REPO_OWNER` e `GITHUB_REPO_NAME` como variáveis estáticas.
+### Repo único (padrão)
 
-> **Limitação atual:** a Edge Function roteia para um único repo fixo. Para múltiplos repos, é necessário evoluir o webhook bridge para ler o repo alvo da payload do Linear (via `sync-config.json` do repo ou campo customizado na issue).
+```bash
+vercel env add GITHUB_REPO_OWNER production   # ex: twinfo-io
+vercel env add GITHUB_REPO_NAME  production   # ex: gorjeta
+vercel env add GITHUB_TOKEN      production   # PAT com repo + workflow scopes
+vercel env add LINEAR_WEBHOOK_SECRET production  # secret do Passo 5
+```
 
-Workaround até a evolução: usar `workflow_dispatch` manual via `gh` CLI para repos secundários.
+### Multi-repo via `REPO_MAP`
+
+Para rotear diferentes projetos Linear para repos distintos, adicionar `REPO_MAP` como JSON:
+
+```bash
+vercel env add REPO_MAP production
+# valor (JSON string):
+# {"ID-PROJETO-LINEAR-1":"twinfo-io/gorjeta","ID-PROJETO-LINEAR-2":"twinfo-io/bpx-agent"}
+```
+
+O bridge usa `REPO_MAP` (prioridade) → `GITHUB_REPO_OWNER/GITHUB_REPO_NAME` (fallback). Ambos coexistem — repos sem entrada no mapa usam o fallback.
 
 ---
 
@@ -151,6 +171,6 @@ gh run list --repo twinfo-io/nome-do-repo --limit 3
 
 | Limitação | Impacto | Workaround |
 |---|---|---|
-| Vercel bridge rota para 1 repo fixo | Outros repos precisam de dispatch manual | Evoluir o bridge para multi-repo (TWI pendente) |
 | `sync-config.json` não tem CLI de geração | IDs preenchidos manualmente | Usar `gh api` para buscar IDs |
 | Labels criadas no nível do time Linear | Compartilhadas entre todos os projetos | OK para Twinfo — 1 team, múltiplos projetos |
+| Onboarding novo repo = 7 passos manuais | ~45 min por repo | CLI `init.ts` planejado para Fase 5 |
