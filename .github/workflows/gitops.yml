@@ -18,6 +18,25 @@ on:
         required: false
 
 jobs:
+  # ─── Eval estático dos prompts dinâmicos (TWI-300 / E7) — grátis, sem LLM ────
+  eval-prompts:
+    name: Eval Prompts (static)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run static prompt contract check
+        run: npm run eval:prompts
+
   # ─── Auto Code Review em todo PR aberto/atualizado ───────────────────────────
   auto-code-review:
     name: Claude Code Review

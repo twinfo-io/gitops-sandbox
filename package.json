@@ -13,7 +13,9 @@
     "sync:push": "tsx src/scripts/sync-project.ts --push",
     "sync:both": "tsx src/scripts/sync-project.ts --both",
     "parse-pr": "tsx src/scripts/parse-pr.ts",
-    "create-demand": "tsx src/scripts/create-demand.ts"
+    "create-demand": "tsx src/scripts/create-demand.ts",
+    "eval:prompts": "tsx src/scripts/eval-prompts.ts",
+    "eval:prompts:llm": "tsx src/scripts/eval-prompts-llm-judge.ts"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
