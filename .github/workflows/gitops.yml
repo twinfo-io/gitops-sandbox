@@ -245,12 +245,50 @@ jobs:
             --dangerously-skip-permissions \
             --allowedTools "$AGENT_TOOLS"
 
+      # Verification-before-completion: o exit code do `claude --print` só diz que a CLI
+      # rodou sem crashar — não que typecheck/test do branch gerado realmente passam.
+      # Para os labels com nome de branch previsível (generate-code, create-specs), re-roda
+      # typecheck+test no branch de verdade em vez de confiar na palavra do agent.
+      - name: Verify agent branch (typecheck + test)
+        id: verify
+        if: |
+          always() &&
+          (github.event.inputs.agent_label == 'agent:generate-code' || github.event.inputs.agent_label == 'agent:create-specs')
+        env:
+          ISSUE_ID: ${{ github.event.inputs.issue_id }}
+          AGENT_LABEL: ${{ github.event.inputs.agent_label }}
+        run: |
+          ISSUE_SLUG=$(echo "$ISSUE_ID" | tr '[:upper:]' '[:lower:]')
+          if [ "$AGENT_LABEL" = "agent:generate-code" ]; then
+            BRANCH="agent/${ISSUE_SLUG}-implementation"
+          else
+            BRANCH="agent/${ISSUE_SLUG}-specs"
+          fi
+
+          if ! git fetch origin "$BRANCH"; then
+            echo "[verify] Branch $BRANCH não encontrada — agent não chegou a commitar/push."
+            echo "verified=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git checkout "origin/$BRANCH"
+          npm ci
+
+          if npm run typecheck && npm test; then
+            echo "[verify] ✅ typecheck + test passam no branch $BRANCH"
+            echo "verified=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "[verify] ❌ typecheck ou test falharam no branch $BRANCH"
+            echo "verified=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Report result to Linear
         if: always()
         env:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           ISSUE_ID: ${{ github.event.inputs.issue_id }}
           AGENT_LABEL: ${{ github.event.inputs.agent_label }}
-          AGENT_STATUS: ${{ steps.run-claude.outcome == 'success' && 'success' || 'failure' }}
+          # success só se a CLI rodou sem erro E (não havia verificação aplicável OU a verificação passou)
+          AGENT_STATUS: ${{ (steps.run-claude.outcome == 'success' && steps.verify.outputs.verified != 'false') && 'success' || 'failure' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: npx tsx src/scripts/report-result.ts
