@@ -7,6 +7,11 @@
  *   GITHUB_TOKEN           — PAT com permissão actions:write no repo
  *   GITHUB_REPO_OWNER      — ex: twinfo-io
  *   GITHUB_REPO_NAME       — ex: gitops-sandbox
+ *
+ * Env vars opcionais:
+ *   LINEAR_TO_GITHUB_MAP   — JSON {"email@linear":"usuario-github"} para o gate de write-access
+ *   LINEAR_API_KEY         — se definida, comenta na issue quando agent:generate-code é bloqueado
+ *                            por falta da label spec-approved (sem ela, só bloqueia, sem comentar)
  */
 
 export const config = { runtime: 'edge' }
@@ -89,6 +94,41 @@ async function checkWriteAccess(
     return { allowed, reason: allowed ? `${username} tem permissão ${body.permission}` : `${username} tem apenas permissão ${body.permission}` }
   } catch (err) {
     return { allowed: false, reason: `falha ao checar permissão GitHub: ${(err as Error).message}` }
+  }
+}
+
+const SPEC_APPROVED_LABEL = 'spec-approved'
+const SPEC_GATED_LABEL    = 'agent:generate-code'
+
+/**
+ * Gate de PRD/spec: agent:generate-code só dispara se a issue já tiver a label
+ * spec-approved (aplicada por PM/tech lead após revisar a spec, ex: gerada via
+ * agent:create-specs). Evita geração de código sem requisito claro.
+ */
+function hasApprovedSpec(labels: LinearLabel[]): boolean {
+  return labels.some(l => l.name === SPEC_APPROVED_LABEL)
+}
+
+async function postSpecRequiredComment(issueInternalId: string): Promise<void> {
+  const apiKey = process.env.LINEAR_API_KEY
+  if (!apiKey) return // sem API key configurada — só bloqueia o dispatch, não comenta
+
+  try {
+    await fetch('https://api.linear.app/graphql', {
+      method: 'POST',
+      headers: { Authorization: apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `mutation($input: CommentCreateInput!) { commentCreate(input: $input) { success } }`,
+        variables: {
+          input: {
+            issueId: issueInternalId,
+            body: `⏸️ \`${SPEC_GATED_LABEL}\` bloqueado: adicione a label \`${SPEC_APPROVED_LABEL}\` depois de revisar a spec (ex: gerada via \`agent:create-specs\`) antes de tentar novamente.`,
+          },
+        },
+      }),
+    })
+  } catch (err) {
+    console.error('[webhook] Falha ao comentar pedido de spec:', err)
   }
 }
 
@@ -242,9 +282,19 @@ export default async function handler(request: Request): Promise<Response> {
 
   // Dispara um workflow por label agent:*/skill:* adicionada
   const dispatched: string[] = []
+  const blocked: string[] = []
   const errors: string[] = []
+  const specApproved = hasApprovedSpec(labels)
+  let needsSpecComment = false
 
   for (const label of agentLabels) {
+    if (label === SPEC_GATED_LABEL && !specApproved) {
+      blocked.push(label)
+      needsSpecComment = true
+      console.warn(`[webhook] ${label} bloqueado para ${issueId}: falta label ${SPEC_APPROVED_LABEL}`)
+      continue
+    }
+
     try {
       await dispatchWorkflow(issueId, label, target)
       dispatched.push(label)
@@ -255,10 +305,14 @@ export default async function handler(request: Request): Promise<Response> {
     }
   }
 
+  if (needsSpecComment) {
+    await postSpecRequiredComment(issue.id as string)
+  }
+
   const status = errors.length > 0 && dispatched.length === 0 ? 500 : 200
 
   return new Response(
-    JSON.stringify({ issueId, dispatched, errors }),
+    JSON.stringify({ issueId, dispatched, blocked, errors }),
     {
       status,
       headers: { 'Content-Type': 'application/json' },

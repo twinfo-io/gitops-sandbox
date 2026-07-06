@@ -30,6 +30,7 @@ function issuePayload(overrides: {
   prevLabelIds?: string[]
   identifier?: string
   actor?: { id?: string; name?: string; email?: string }
+  extraLabels?: { id: string; name: string }[]
 } = {}): string {
   const {
     action = 'update',
@@ -38,7 +39,10 @@ function issuePayload(overrides: {
     prevLabelIds = [],
     identifier = 'TWI-100',
     actor,
+    extraLabels = [],
   } = overrides
+
+  const labels = [{ id: labelId, name: labelName }, ...extraLabels]
 
   return JSON.stringify({
     type: 'Issue',
@@ -47,8 +51,8 @@ function issuePayload(overrides: {
     data: {
       id: 'issue-id-1',
       identifier,
-      labels: [{ id: labelId, name: labelName }],
-      labelIds: [labelId],
+      labels,
+      labelIds: labels.map(l => l.id),
     },
     updatedFrom: action === 'update' ? { labelIds: prevLabelIds } : undefined,
   })
@@ -140,7 +144,10 @@ describe('filtragem de eventos', () => {
 
 describe('dispatch agent:*', () => {
   it('dispara workflow para agent:generate-code', async () => {
-    const body = issuePayload({ labelName: 'agent:generate-code' })
+    const body = issuePayload({
+      labelName: 'agent:generate-code',
+      extraLabels: [{ id: 'label-spec', name: 'spec-approved' }],
+    })
     const req  = makeRequest(body)
     const res  = await handler(req)
     const json = await res.json() as { dispatched: string[] }
@@ -229,7 +236,10 @@ describe('erro no GitHub dispatch', () => {
       vi.fn().mockResolvedValue(new Response('Not Found', { status: 404 }))
     )
 
-    const body = issuePayload()
+    const body = issuePayload({
+      labelName: 'agent:generate-code',
+      extraLabels: [{ id: 'label-spec', name: 'spec-approved' }],
+    })
     const req  = makeRequest(body)
     const res  = await handler(req)
     const json = await res.json() as { errors: string[] }
@@ -285,7 +295,10 @@ describe('gate de write-access (LINEAR_TO_GITHUB_MAP)', () => {
   })
 
   it('sem LINEAR_TO_GITHUB_MAP, dispatch procede normalmente (gate desabilitado)', async () => {
-    const body = issuePayload({ actor: { email: 'sem-mapa@twinfo.io' } })
+    const body = issuePayload({
+      actor: { email: 'sem-mapa@twinfo.io' },
+      labelName: 'agent:run-tests', // evita o gate de spec-approved, ortogonal a este teste
+    })
     const req  = makeRequest(body)
     const res  = await handler(req)
 
@@ -347,13 +360,16 @@ describe('gate de write-access (LINEAR_TO_GITHUB_MAP)', () => {
       })
     )
 
-    const body = issuePayload({ actor: { email: 'dev@twinfo.io' } })
+    const body = issuePayload({
+      actor: { email: 'dev@twinfo.io' },
+      labelName: 'agent:run-tests', // evita o gate de spec-approved, ortogonal a este teste
+    })
     const req  = makeRequest(body)
     const res  = await handler(req)
     const json = await res.json() as { dispatched: string[] }
 
     expect(res.status).toBe(200)
-    expect(json.dispatched).toContain('agent:generate-code')
+    expect(json.dispatched).toContain('agent:run-tests')
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
@@ -365,5 +381,77 @@ describe('gate de write-access (LINEAR_TO_GITHUB_MAP)', () => {
     const res  = await handler(req)
 
     expect(res.status).toBe(403)
+  })
+})
+
+// ── Gate de spec/PRD aprovada (agent:generate-code) ─────────────────────────
+
+describe('gate de spec-approved para agent:generate-code', () => {
+  afterEach(() => {
+    delete process.env.LINEAR_API_KEY
+  })
+
+  it('bloqueia agent:generate-code sem a label spec-approved', async () => {
+    const body = issuePayload({ labelName: 'agent:generate-code' })
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+    const json = await res.json() as { dispatched: string[]; blocked: string[] }
+
+    expect(res.status).toBe(200)
+    expect(json.dispatched).toHaveLength(0)
+    expect(json.blocked).toContain('agent:generate-code')
+    expect(fetch).not.toHaveBeenCalled() // nem dispatch nem comment (sem LINEAR_API_KEY)
+  })
+
+  it('permite agent:generate-code quando a issue já tem spec-approved', async () => {
+    const body = issuePayload({
+      labelName: 'agent:generate-code',
+      extraLabels: [{ id: 'label-spec', name: 'spec-approved' }],
+    })
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+    const json = await res.json() as { dispatched: string[]; blocked: string[] }
+
+    expect(res.status).toBe(200)
+    expect(json.dispatched).toContain('agent:generate-code')
+    expect(json.blocked).toHaveLength(0)
+  })
+
+  it('não bloqueia outras labels do mesmo evento quando generate-code é bloqueado', async () => {
+    const body = JSON.stringify({
+      type: 'Issue',
+      action: 'update',
+      data: {
+        id: 'issue-id-1',
+        identifier: 'TWI-103',
+        labels: [
+          { id: 'l1', name: 'agent:generate-code' },
+          { id: 'l2', name: 'agent:run-tests' },
+        ],
+        labelIds: ['l1', 'l2'],
+      },
+      updatedFrom: { labelIds: [] },
+    })
+
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+    const json = await res.json() as { dispatched: string[]; blocked: string[] }
+
+    expect(json.blocked).toContain('agent:generate-code')
+    expect(json.dispatched).toContain('agent:run-tests')
+  })
+
+  it('comenta na issue pedindo spec quando LINEAR_API_KEY está configurada', async () => {
+    process.env.LINEAR_API_KEY = 'lin_api_test'
+
+    const body = issuePayload({ labelName: 'agent:generate-code' })
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+
+    expect(res.status).toBe(200)
+    expect(fetch).toHaveBeenCalledOnce() // só o commentCreate, sem dispatch
+    const [url, opts] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://api.linear.app/graphql')
+    expect(opts.body as string).toContain('spec-approved')
   })
 })

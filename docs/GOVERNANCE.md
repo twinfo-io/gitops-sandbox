@@ -16,7 +16,7 @@ Labels `agent:*` disparam execução autônoma de código em repositórios reais
 
 | Label | Quem pode adicionar | Aprovação necessária |
 |---|---|---|
-| `agent:generate-code` | Qualquer dev do time | Nenhuma — PR gerado requer review humano normal |
+| `agent:generate-code` | Qualquer dev do time | Requer label `spec-approved` na issue (gate técnico no webhook) — PR gerado ainda requer review humano normal |
 | `agent:run-tests` | Qualquer dev do time | Nenhuma — read-only, sem commits |
 | `agent:code-review` | Qualquer dev do time | Nenhuma — read-only, cria sub-issues |
 | `agent:security-review` | Qualquer dev do time | Nenhuma — read-only |
