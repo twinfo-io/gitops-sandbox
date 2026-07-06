@@ -257,12 +257,63 @@ jobs:
 
           echo "[run-agent] Issue: $ISSUE_ID | Agent: $AGENT_LABEL | Model: $AGENT_MODEL"
           echo "[run-agent] Prompt length: ${#CLAUDE_PROMPT} chars"
+
+          # Observability (TWI-301 / E8): --output-format json dá duração/tokens/custo
+          # estruturados — usados no job summary abaixo (trilha fora do Linear, sobrevive
+          # mesmo se a API do Linear cair). Nomes de campo seguem o schema documentado do
+          # Claude Code CLI; como os agents ainda não rodaram em produção (aguardando
+          # crédito Anthropic, ver ROADMAP.md Fase 4), vale confirmar contra saída real
+          # assim que a primeira execução acontecer.
+          START_TS=$(date +%s)
           printf '%s' "$CLAUDE_PROMPT" | claude --print \
             --model "$AGENT_MODEL" \
             --append-system-prompt "$SECURITY_PREAMBLE" \
             --exclude-dynamic-system-prompt-sections \
             --dangerously-skip-permissions \
-            --allowedTools "$AGENT_TOOLS"
+            --allowedTools "$AGENT_TOOLS" \
+            --output-format json \
+            > /tmp/claude-output.json
+          CLAUDE_EXIT=$?
+          END_TS=$(date +%s)
+          DURATION_S=$((END_TS - START_TS))
+
+          RESULT_TEXT=$(jq -r '.result // "(sem campo result na saída)"' /tmp/claude-output.json 2>/dev/null || echo "(saída não é JSON válido)")
+          echo "$RESULT_TEXT"
+
+          TOKENS_IN=$(jq -r '.usage.input_tokens // "n/a"' /tmp/claude-output.json 2>/dev/null || echo "n/a")
+          TOKENS_OUT=$(jq -r '.usage.output_tokens // "n/a"' /tmp/claude-output.json 2>/dev/null || echo "n/a")
+          COST_USD=$(jq -r '.total_cost_usd // .cost_usd // "n/a"' /tmp/claude-output.json 2>/dev/null || echo "n/a")
+
+          {
+            echo "## 🤖 Execução do Agent — \`$AGENT_LABEL\`"
+            echo ""
+            echo "| Campo | Valor |"
+            echo "|---|---|"
+            echo "| Issue | $ISSUE_ID |"
+            echo "| Modelo | $AGENT_MODEL |"
+            echo "| Duração | ${DURATION_S}s |"
+            echo "| Tokens entrada | $TOKENS_IN |"
+            echo "| Tokens saída | $TOKENS_OUT |"
+            echo "| Custo estimado (USD) | $COST_USD |"
+            echo "| Exit code | $CLAUDE_EXIT |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "duration_s=${DURATION_S}" >> "$GITHUB_OUTPUT"
+          echo "tokens_in=${TOKENS_IN}" >> "$GITHUB_OUTPUT"
+          echo "tokens_out=${TOKENS_OUT}" >> "$GITHUB_OUTPUT"
+          echo "cost_usd=${COST_USD}" >> "$GITHUB_OUTPUT"
+
+          exit $CLAUDE_EXIT
+
+      # Trilha de auditoria fora do Linear (E8): sobrevive mesmo se a API do Linear cair.
+      - name: Upload raw agent output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-output-${{ github.event.inputs.issue_id }}-${{ github.run_id }}
+          path: /tmp/claude-output.json
+          if-no-files-found: ignore
+          retention-days: 90
 
       # Verification-before-completion: o exit code do `claude --print` só diz que a CLI
       # rodou sem crashar — não que typecheck/test do branch gerado realmente passam.
@@ -310,4 +361,8 @@ jobs:
           # success só se a CLI rodou sem erro E (não havia verificação aplicável OU a verificação passou)
           AGENT_STATUS: ${{ (steps.run-claude.outcome == 'success' && steps.verify.outputs.verified != 'false') && 'success' || 'failure' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          AGENT_DURATION_S: ${{ steps.run-claude.outputs.duration_s }}
+          AGENT_TOKENS_IN: ${{ steps.run-claude.outputs.tokens_in }}
+          AGENT_TOKENS_OUT: ${{ steps.run-claude.outputs.tokens_out }}
+          AGENT_COST_USD: ${{ steps.run-claude.outputs.cost_usd }}
         run: npx tsx src/scripts/report-result.ts

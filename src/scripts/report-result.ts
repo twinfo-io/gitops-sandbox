@@ -37,6 +37,10 @@ export interface ReportInput {
   status: AgentStatus
   runUrl: string | null
   summary: string | null
+  durationSeconds: string | null
+  tokensIn: string | null
+  tokensOut: string | null
+  costUsd: string | null
 }
 
 // ── State machine: agent × status → Linear state ─────────────────────────────
@@ -151,6 +155,19 @@ export function buildComment(input: ReportInput): string {
   const note = notes[label]?.[input.status]
   if (note) lines.push(`> ${note}`, '')
 
+  // Observability (TWI-301 / E8): custo/duração/tokens, quando disponíveis, ficam
+  // registrados aqui também — trilha visível mesmo sem abrir o job summary do GH Actions.
+  const isKnown = (v: string | null): v is string => !!v && v !== 'n/a'
+  if ([input.durationSeconds, input.tokensIn, input.tokensOut, input.costUsd].some(isKnown)) {
+    const parts: string[] = []
+    if (isKnown(input.durationSeconds)) parts.push(`⏱ ${input.durationSeconds}s`)
+    if (isKnown(input.tokensIn) || isKnown(input.tokensOut)) {
+      parts.push(`🔤 ${input.tokensIn ?? 'n/a'} in / ${input.tokensOut ?? 'n/a'} out`)
+    }
+    if (isKnown(input.costUsd)) parts.push(`💰 $${input.costUsd}`)
+    lines.push(`_${parts.join(' · ')}_`, '')
+  }
+
   if (runLink) lines.push(runLink)
 
   lines.push('', `_Reportado automaticamente pelo GitOps × Claude Agents_`)
@@ -168,13 +185,20 @@ export async function main(): Promise<void> {
   const summary         = process.env.AGENT_SUMMARY
     ? process.env.AGENT_SUMMARY.slice(0, 500)
     : null
+  const durationSeconds = process.env.AGENT_DURATION_S ?? null
+  const tokensIn        = process.env.AGENT_TOKENS_IN ?? null
+  const tokensOut       = process.env.AGENT_TOKENS_OUT ?? null
+  const costUsd         = process.env.AGENT_COST_USD ?? null
 
   if (!issueIdentifier) throw new Error('ISSUE_ID env var não definida')
   if (!agentLabel)      throw new Error('AGENT_LABEL env var não definida')
 
   const status: AgentStatus = rawStatus === 'success' ? 'success' : 'failure'
 
-  const input: ReportInput = { issueId: issueIdentifier, agentLabel, status, runUrl, summary }
+  const input: ReportInput = {
+    issueId: issueIdentifier, agentLabel, status, runUrl, summary,
+    durationSeconds, tokensIn, tokensOut, costUsd,
+  }
 
   console.log(`[report-result] ${issueIdentifier} | ${agentLabel} | ${status}`)
 

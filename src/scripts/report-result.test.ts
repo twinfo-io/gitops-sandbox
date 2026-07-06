@@ -55,6 +55,10 @@ describe('buildComment', () => {
     status: 'success',
     runUrl: 'https://github.com/twinfo-io/gitops-sandbox/actions/runs/123',
     summary: null,
+    durationSeconds: null,
+    tokensIn: null,
+    tokensOut: null,
+    costUsd: null,
   }
 
   it('sucesso contém ✅ e label', () => {
@@ -99,6 +103,37 @@ describe('buildComment', () => {
   it('sempre termina com rodapé GitOps', () => {
     const comment = buildComment(base)
     expect(comment).toContain('GitOps × Claude Agents')
+  })
+
+  it('inclui linha de observability quando duração/tokens/custo são fornecidos', () => {
+    const comment = buildComment({
+      ...base,
+      durationSeconds: '42',
+      tokensIn: '1000',
+      tokensOut: '250',
+      costUsd: '0.0123',
+    })
+    expect(comment).toContain('42s')
+    expect(comment).toContain('1000 in / 250 out')
+    expect(comment).toContain('$0.0123')
+  })
+
+  it('não inclui linha de observability quando todos os campos são null', () => {
+    const comment = buildComment(base)
+    expect(comment).not.toContain('⏱')
+    expect(comment).not.toContain('💰')
+  })
+
+  it('trata "n/a" como ausente na linha de observability', () => {
+    const comment = buildComment({ ...base, durationSeconds: 'n/a', tokensIn: 'n/a', tokensOut: 'n/a', costUsd: 'n/a' })
+    expect(comment).not.toContain('⏱')
+    expect(comment).not.toContain('💰')
+  })
+
+  it('mostra observability parcial quando só duração está disponível', () => {
+    const comment = buildComment({ ...base, durationSeconds: '10' })
+    expect(comment).toContain('⏱ 10s')
+    expect(comment).not.toContain('🔤')
   })
 })
 
@@ -145,6 +180,10 @@ describe('main()', () => {
     delete process.env.AGENT_STATUS
     delete process.env.RUN_URL
     delete process.env.AGENT_SUMMARY
+    delete process.env.AGENT_DURATION_S
+    delete process.env.AGENT_TOKENS_IN
+    delete process.env.AGENT_TOKENS_OUT
+    delete process.env.AGENT_COST_USD
   })
 
   it('reporta sucesso: resolve issue, comenta e atualiza status', async () => {
@@ -165,6 +204,22 @@ describe('main()', () => {
     // 'x'.repeat(500) deve caber no comentário; o excedente não
     expect(commentBody).toContain('x'.repeat(500))
     expect(commentBody).not.toContain('x'.repeat(501))
+  })
+
+  it('propaga AGENT_DURATION_S/AGENT_TOKENS_IN/OUT/AGENT_COST_USD para o comentário', async () => {
+    mockLinearOk()
+    process.env.AGENT_DURATION_S = '37'
+    process.env.AGENT_TOKENS_IN  = '2000'
+    process.env.AGENT_TOKENS_OUT = '500'
+    process.env.AGENT_COST_USD   = '0.05'
+
+    await main()
+
+    const commentCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[1] as [string, RequestInit]
+    const commentBody = JSON.parse(commentCall[1].body as string).variables.input.body as string
+    expect(commentBody).toContain('37s')
+    expect(commentBody).toContain('2000 in / 500 out')
+    expect(commentBody).toContain('$0.05')
   })
 
   it('status ausente/inválido vira failure (fallback seguro)', async () => {
