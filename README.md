@@ -189,6 +189,8 @@ O sistema detecta o arquivo sem `LINEAR_ID` no próximo push e cria a issue no L
 ## Segurança
 
 - Webhook Linear verificado via **HMAC-SHA256** — payloads sem assinatura válida são rejeitados com 401
+- **Gate de write-access:** se `LINEAR_TO_GITHUB_MAP` estiver configurado (JSON `{"email@linear":"usuario-github"}`), o webhook só dispara o agent se o autor do label tiver permissão `write`/`admin` no repo alvo (checado via GitHub API). Sem a env var, o gate fica desabilitado — comportamento documentado em [GOVERNANCE.md](docs/GOVERNANCE.md)
+- **Anti-prompt-injection:** todo prompt enviado ao Claude (via `run-agent` e `auto-code-review`) é prefixado com instrução fixa tratando conteúdo de issue/PR/diff como dado, nunca instrução — mitigação para o vetor de ataque conhecido em ferramentas de code-review por LLM (ex: CVE-2024-51355/51356 do PR-Agent)
 - Agents operam com escopo mínimo — `ANTHROPIC_API_KEY`, `LINEAR_API_KEY`, `GITHUB_TOKEN` (sem admin)
 - **PRs de agents nunca são auto-mergeados** — sempre requerem aprovação humana
 - **Anti-recursão dual-layer:** branch `agent/*` + marker `<!-- agent-created: true -->` no body impedem loop de reviews

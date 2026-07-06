@@ -27,8 +27,69 @@ interface LinearLabel {
   name: string
 }
 
+interface LinearActor {
+  id?: string
+  name?: string
+  email?: string
+}
+
 function isDispatchable(name: string): boolean {
   return AGENT_LABELS.has(name) || name.startsWith(SKILL_LABEL_PREFIX)
+}
+
+/**
+ * Gate de write-access: só permite dispatch se o actor do evento Linear
+ * puder ser mapeado a um usuário GitHub com permissão write/admin no repo alvo.
+ *
+ * Opt-in via LINEAR_TO_GITHUB_MAP (mesmo padrão de fallback do REPO_MAP) —
+ * sem essa env var, o gate fica desabilitado (comportamento anterior preservado).
+ */
+async function checkWriteAccess(
+  actor: LinearActor | undefined,
+  target: { owner: string; repo: string }
+): Promise<{ allowed: boolean; reason: string }> {
+  const mapStr = process.env.LINEAR_TO_GITHUB_MAP
+  if (!mapStr) {
+    return { allowed: true, reason: 'gate desabilitado — LINEAR_TO_GITHUB_MAP não configurado' }
+  }
+
+  let identityMap: Record<string, string> = {}
+  try {
+    identityMap = JSON.parse(mapStr)
+  } catch {
+    console.error('[webhook] LINEAR_TO_GITHUB_MAP inválido — bloqueando por segurança')
+    return { allowed: false, reason: 'LINEAR_TO_GITHUB_MAP mal configurado' }
+  }
+
+  const email = actor?.email
+  const username = email ? identityMap[email] : undefined
+  if (!username) {
+    return { allowed: false, reason: `actor (${email ?? 'desconhecido'}) sem identidade GitHub mapeada` }
+  }
+
+  const { owner, repo } = target
+  const token = process.env.GITHUB_TOKEN
+  const url = `https://api.github.com/repos/${owner}/${repo}/collaborators/${username}/permission`
+
+  try {
+    const resp = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    })
+
+    if (!resp.ok) {
+      return { allowed: false, reason: `GitHub retornou ${resp.status} ao checar permissão de ${username}` }
+    }
+
+    const body = (await resp.json()) as { permission?: string }
+    const allowed = body.permission === 'admin' || body.permission === 'write'
+    return { allowed, reason: allowed ? `${username} tem permissão ${body.permission}` : `${username} tem apenas permissão ${body.permission}` }
+  } catch (err) {
+    return { allowed: false, reason: `falha ao checar permissão GitHub: ${(err as Error).message}` }
+  }
 }
 
 async function verifyLinearSignature(
@@ -166,6 +227,16 @@ export default async function handler(request: Request): Promise<Response> {
     return new Response(
       JSON.stringify({ skipped: true, reason: 'no target repo resolved — set REPO_MAP or GITHUB_REPO_OWNER/GITHUB_REPO_NAME' }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+
+  const actor = event.actor as LinearActor | undefined
+  const access = await checkWriteAccess(actor, target)
+  if (!access.allowed) {
+    console.error(`[webhook] Dispatch bloqueado: ${access.reason}`)
+    return new Response(
+      JSON.stringify({ skipped: true, reason: `unauthorized: ${access.reason}` }),
+      { status: 403, headers: { 'Content-Type': 'application/json' } }
     )
   }
 

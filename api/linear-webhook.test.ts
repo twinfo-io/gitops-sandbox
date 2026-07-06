@@ -29,6 +29,7 @@ function issuePayload(overrides: {
   labelName?: string
   prevLabelIds?: string[]
   identifier?: string
+  actor?: { id?: string; name?: string; email?: string }
 } = {}): string {
   const {
     action = 'update',
@@ -36,11 +37,13 @@ function issuePayload(overrides: {
     labelName = 'agent:generate-code',
     prevLabelIds = [],
     identifier = 'TWI-100',
+    actor,
   } = overrides
 
   return JSON.stringify({
     type: 'Issue',
     action,
+    actor,
     data: {
       id: 'issue-id-1',
       identifier,
@@ -271,5 +274,96 @@ describe('erro no GitHub dispatch', () => {
     expect(res.status).toBe(200)
     expect(json.dispatched).toHaveLength(1)
     expect(json.errors).toHaveLength(1)
+  })
+})
+
+// ── Gate de write-access ────────────────────────────────────────────────────
+
+describe('gate de write-access (LINEAR_TO_GITHUB_MAP)', () => {
+  afterEach(() => {
+    delete process.env.LINEAR_TO_GITHUB_MAP
+  })
+
+  it('sem LINEAR_TO_GITHUB_MAP, dispatch procede normalmente (gate desabilitado)', async () => {
+    const body = issuePayload({ actor: { email: 'sem-mapa@twinfo.io' } })
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+
+    expect(res.status).toBe(200)
+    expect(fetch).toHaveBeenCalledOnce() // só o dispatch, sem checagem de permissão
+  })
+
+  it('bloqueia com 403 quando actor não está mapeado', async () => {
+    process.env.LINEAR_TO_GITHUB_MAP = JSON.stringify({ 'dev@twinfo.io': 'devuser' })
+
+    const body = issuePayload({ actor: { email: 'desconhecido@twinfo.io' } })
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+    const json = await res.json() as { skipped: boolean; reason: string }
+
+    expect(res.status).toBe(403)
+    expect(json.skipped).toBe(true)
+    expect(fetch).not.toHaveBeenCalled() // nem chega a checar GitHub nem a despachar
+  })
+
+  it('bloqueia com 403 quando actor ausente no evento', async () => {
+    process.env.LINEAR_TO_GITHUB_MAP = JSON.stringify({ 'dev@twinfo.io': 'devuser' })
+
+    const body = issuePayload()
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+
+    expect(res.status).toBe(403)
+  })
+
+  it('bloqueia com 403 quando GitHub reporta permissão read', async () => {
+    process.env.LINEAR_TO_GITHUB_MAP = JSON.stringify({ 'dev@twinfo.io': 'devuser' })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ permission: 'read' }), { status: 200 })
+      )
+    )
+
+    const body = issuePayload({ actor: { email: 'dev@twinfo.io' } })
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+
+    expect(res.status).toBe(403)
+  })
+
+  it('permite dispatch quando GitHub reporta permissão write', async () => {
+    process.env.LINEAR_TO_GITHUB_MAP = JSON.stringify({ 'dev@twinfo.io': 'devuser' })
+    let call = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(() => {
+        call++
+        return Promise.resolve(
+          call === 1
+            ? new Response(JSON.stringify({ permission: 'write' }), { status: 200 }) // checagem de permissão
+            : new Response(null, { status: 204 }) // dispatch
+        )
+      })
+    )
+
+    const body = issuePayload({ actor: { email: 'dev@twinfo.io' } })
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+    const json = await res.json() as { dispatched: string[] }
+
+    expect(res.status).toBe(200)
+    expect(json.dispatched).toContain('agent:generate-code')
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('bloqueia com 403 quando LINEAR_TO_GITHUB_MAP é JSON inválido', async () => {
+    process.env.LINEAR_TO_GITHUB_MAP = '{ json invalido'
+
+    const body = issuePayload({ actor: { email: 'dev@twinfo.io' } })
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+
+    expect(res.status).toBe(403)
   })
 })
