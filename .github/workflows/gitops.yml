@@ -173,8 +173,12 @@ jobs:
         id: run-claude
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          # GITHUB_TOKEN escopado: agent:run-tests é 100% local + comentário no Linear
+          # (GOVERNANCE.md: "read-only, sem commits") — não precisa de token com escrita no repo.
+          GITHUB_TOKEN: ${{ github.event.inputs.agent_label != 'agent:run-tests' && secrets.GITHUB_TOKEN || '' }}
+          # LINEAR_API_KEY não é passado aqui de propósito: as ações no Linear deste step usam os
+          # tools mcp__claude_ai_Linear__* (conector OAuth), não a API key raw — só os scripts
+          # (report-result.ts, sync-project.ts, create-demand.ts) consomem essa env var, em outros steps.
           ISSUE_ID: ${{ github.event.inputs.issue_id }}
           AGENT_LABEL: ${{ github.event.inputs.agent_label }}
           AGENT_PROMPT: ${{ github.event.inputs.agent_prompt }}
@@ -195,6 +199,20 @@ jobs:
             ["agent:create-specs"]="claude-sonnet-5"
           )
           AGENT_MODEL="${AGENT_MODEL_MAP[$AGENT_LABEL]:-claude-sonnet-5}"
+
+          # Escopo de allowedTools por label — least-privilege: cada label só recebe as tools
+          # que o comportamento documentado dele realmente usa (README.md § Workflows definidos).
+          # skill:* e labels desconhecidas caem no superset completo (fallback conservador).
+          FULL_TOOLS="Bash,Read,Edit,Write,mcp__github__create_pull_request,mcp__github__create_branch,mcp__github__push_files,mcp__github__add_issue_comment,mcp__github__create_pull_request_review,mcp__claude_ai_Linear__save_issue,mcp__claude_ai_Linear__save_comment,mcp__claude_ai_Linear__get_issue,mcp__claude_ai_Linear__list_issues"
+          declare -A AGENT_TOOLS_MAP=(
+            ["agent:run-tests"]="Bash,Read,mcp__claude_ai_Linear__save_comment,mcp__claude_ai_Linear__save_issue"
+            ["agent:deploy"]="Bash,mcp__claude_ai_Linear__save_comment,mcp__claude_ai_Linear__save_issue"
+            ["agent:code-review"]="Bash,Read,mcp__claude_ai_Linear__save_issue"
+            ["agent:security-review"]="Bash,Read,Edit,Write,mcp__github__create_branch,mcp__github__push_files,mcp__github__create_pull_request,mcp__claude_ai_Linear__save_issue,mcp__claude_ai_Linear__save_comment"
+            ["agent:generate-code"]="Bash,Read,Edit,Write,mcp__github__create_branch,mcp__github__push_files,mcp__github__create_pull_request,mcp__claude_ai_Linear__get_issue,mcp__claude_ai_Linear__save_issue"
+            ["agent:create-specs"]="Bash,Read,Edit,Write,mcp__github__create_branch,mcp__github__push_files,mcp__github__create_pull_request,mcp__claude_ai_Linear__get_issue,mcp__claude_ai_Linear__save_issue"
+          )
+          AGENT_TOOLS="${AGENT_TOOLS_MAP[$AGENT_LABEL]:-$FULL_TOOLS}"
 
           # Resolve prompt: usa input explícito se fornecido, senão monta padrão por label
           if [ -n "$AGENT_PROMPT" ]; then
@@ -225,7 +243,7 @@ jobs:
             --append-system-prompt "$SECURITY_PREAMBLE" \
             --exclude-dynamic-system-prompt-sections \
             --dangerously-skip-permissions \
-            --allowedTools "Bash,Read,Edit,Write,mcp__github__create_pull_request,mcp__github__create_branch,mcp__github__push_files,mcp__github__add_issue_comment,mcp__github__create_pull_request_review,mcp__claude_ai_Linear__save_issue,mcp__claude_ai_Linear__save_comment,mcp__claude_ai_Linear__get_issue,mcp__claude_ai_Linear__list_issues"
+            --allowedTools "$AGENT_TOOLS"
 
       - name: Report result to Linear
         if: always()
