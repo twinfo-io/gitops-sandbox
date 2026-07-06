@@ -191,6 +191,8 @@ jobs:
             CLAUDE_PROMPT="Trigger the deploy pipeline for this project. Monitor status. Post result (success URL or failure logs) as comment on Linear issue ${ISSUE_ID} and update issue status accordingly."
           elif [ "$AGENT_LABEL" = "agent:code-review" ]; then
             CLAUDE_PROMPT="Run /code-review on the latest PR diff. For each finding create a sub-issue on Linear under ${ISSUE_ID} with label agent-created. Auto-fixable findings get agent:generate-code label. Do NOT open any PRs yourself."
+          elif [ "$AGENT_LABEL" = "agent:create-specs" ]; then
+            CLAUDE_PROMPT="Read issue ${ISSUE_ID} from Linear — it contains discovery notes/briefing for a new spec. Using CLAUDE.md as context and this repo's PM skills (/create-prd or /write-spec, whichever is available) as reference structure, generate or update .specs/SPECS.md and .specs/WORKPLAN.md reflecting the requirement. Do NOT modify any file outside .specs/ or docs/. IMPORTANT: create branch named agent/${ISSUE_ID,,}-specs (must start with 'agent/'). Commit and push. Open a PR — the PR body MUST start with the line: <!-- agent-created: true --> followed by the issue title and a link to ${ISSUE_ID}. Update Linear issue status to In Review after the PR is opened."
           elif [[ "$AGENT_LABEL" == skill:* ]]; then
             SKILL_NAME="${AGENT_LABEL#skill:}"
             CLAUDE_PROMPT="Read Linear issue ${ISSUE_ID}. Execute the /${SKILL_NAME} skill using CLAUDE.md as context. If the skill produces files or a PR: branch MUST start with 'agent/' and PR body MUST start with: <!-- agent-created: true --> Update the Linear issue status when complete."
