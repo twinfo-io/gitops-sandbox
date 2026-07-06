@@ -454,4 +454,106 @@ describe('gate de spec-approved para agent:generate-code', () => {
     expect(url).toBe('https://api.linear.app/graphql')
     expect(opts.body as string).toContain('spec-approved')
   })
+
+  it('não quebra o request se o comentário falhar (só loga o erro)', async () => {
+    process.env.LINEAR_API_KEY = 'lin_api_test'
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('rede fora do ar')))
+
+    const body = issuePayload({ labelName: 'agent:generate-code' })
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+
+    expect(res.status).toBe(200)
+  })
+})
+
+// ── Body inválido ────────────────────────────────────────────────────────────
+
+describe('body malformado', () => {
+  it('retorna 400 quando o body não é JSON válido', async () => {
+    const body = 'isso não é json'
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+
+    expect(res.status).toBe(400)
+  })
+})
+
+// ── resolveTarget via REPO_MAP ───────────────────────────────────────────────
+
+describe('resolveTarget — REPO_MAP', () => {
+  afterEach(() => {
+    delete process.env.REPO_MAP
+  })
+
+  it('usa fallback single-repo quando REPO_MAP é JSON inválido', async () => {
+    process.env.REPO_MAP = '{ isso não é json'
+
+    const body = issuePayload({
+      labelName: 'agent:generate-code',
+      extraLabels: [{ id: 'label-spec', name: 'spec-approved' }],
+    })
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+    const json = await res.json() as { dispatched: string[] }
+
+    expect(res.status).toBe(200)
+    expect(json.dispatched).toContain('agent:generate-code')
+  })
+
+  it('usa fallback single-repo quando REPO_MAP não mapeia o projectId/teamId do evento', async () => {
+    process.env.REPO_MAP = JSON.stringify({ 'outro-project-id': 'outra-org/outro-repo' })
+
+    const body = issuePayload({
+      labelName: 'agent:generate-code',
+      extraLabels: [{ id: 'label-spec', name: 'spec-approved' }],
+    })
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+    const json = await res.json() as { dispatched: string[] }
+
+    expect(res.status).toBe(200)
+    expect(json.dispatched).toContain('agent:generate-code')
+
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string]
+    expect(url).toContain(`${OWNER}/${REPO}`) // caiu no fallback, não no REPO_MAP
+  })
+
+  it('resolve o repo via REPO_MAP quando o projectId do evento está mapeado', async () => {
+    process.env.REPO_MAP = JSON.stringify({ 'project-xyz': 'minha-org/meu-repo' })
+
+    const body = JSON.stringify({
+      type: 'Issue',
+      action: 'update',
+      data: {
+        id: 'issue-id-1',
+        identifier: 'TWI-100',
+        projectId: 'project-xyz',
+        labels: [{ id: 'l1', name: 'agent:run-tests' }],
+        labelIds: ['l1'],
+      },
+      updatedFrom: { labelIds: [] },
+    })
+    const req = makeRequest(body)
+    const res = await handler(req)
+
+    expect(res.status).toBe(200)
+    const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0] as [string]
+    expect(url).toContain('minha-org/meu-repo')
+  })
+
+  it('retorna 200 com skipped quando nenhum repo alvo pode ser resolvido', async () => {
+    delete process.env.GITHUB_REPO_OWNER
+    delete process.env.GITHUB_REPO_NAME
+
+    const body = issuePayload({ labelName: 'agent:run-tests' })
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+    const json = await res.json() as { skipped: boolean; reason: string }
+
+    expect(res.status).toBe(200)
+    expect(json.skipped).toBe(true)
+    expect(json.reason).toContain('no target repo resolved')
+    expect(fetch).not.toHaveBeenCalled()
+  })
 })

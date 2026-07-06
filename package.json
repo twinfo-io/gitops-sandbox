@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vercel dev",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "sync": "tsx src/scripts/sync-project.ts",
     "sync:pull": "tsx src/scripts/sync-project.ts --pull",
@@ -16,6 +17,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^1.6.1",
     "tsx": "^4.0.0",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"

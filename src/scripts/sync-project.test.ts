@@ -1,8 +1,30 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
+const state = vi.hoisted(() => ({ specsContent: '# Specs de teste' }))
+
+vi.mock('fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs/promises')>()
+  return {
+    ...actual,
+    readFile: vi.fn(async (path: unknown, encoding?: unknown) => {
+      if (String(path).includes('sync-config.json')) {
+        return actual.readFile(path as string, encoding as BufferEncoding)
+      }
+      return state.specsContent
+    }),
+    writeFile: vi.fn(async () => undefined),
+    mkdir: vi.fn(async () => undefined),
+  }
+})
+
+import { readFile, writeFile, mkdir } from 'fs/promises'
 import {
   generateWorkplan,
   generateEpicDoc,
   generateSprintDoc,
+  pull,
+  push,
+  main,
   type LinearIssue,
   type SyncConfig,
 } from './sync-project'
@@ -153,5 +175,185 @@ describe('generateSprintDoc', () => {
     const urgent = issue({ priority: 1 })
     const result = generateSprintDoc('Sprint', [urgent])
     expect(result).toContain('Urgent')
+  })
+})
+
+// ── pull() / push() / main() ─────────────────────────────────────────────────
+
+describe('pull() / push() / main()', () => {
+  function mockFetchByQuery(overrides: {
+    issues?: LinearIssue[]
+    pullDocuments?: Array<{ id: string; title: string; content: string }>
+    pushExistingDocs?: Array<{ id: string; title: string }>
+  } = {}) {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((_url: string, opts: RequestInit) => {
+      const query = JSON.parse(opts.body as string).query as string
+
+      if (query.includes('issues {')) {
+        return Promise.resolve(new Response(JSON.stringify({
+          data: {
+            project: {
+              name: 'GitOps Sandbox',
+              issues: { nodes: overrides.issues ?? [] },
+              documents: { nodes: overrides.pullDocuments ?? [] },
+            },
+          },
+        })))
+      }
+      if (query.includes('documentUpdate')) {
+        return Promise.resolve(new Response(JSON.stringify({ data: { documentUpdate: { success: true } } })))
+      }
+      if (query.includes('documentCreate')) {
+        return Promise.resolve(new Response(JSON.stringify({
+          data: { documentCreate: { success: true, document: { id: 'doc-1', title: 'Especificação Técnica' } } },
+        })))
+      }
+      if (query.includes('documents { nodes { id title } }')) {
+        return Promise.resolve(new Response(JSON.stringify({
+          data: { project: { documents: { nodes: overrides.pushExistingDocs ?? [] } } },
+        })))
+      }
+      return Promise.resolve(new Response(JSON.stringify({ data: {} })))
+    }))
+  }
+
+  const ORIGINAL_ARGV2 = process.argv[2]
+
+  beforeEach(() => {
+    process.env.LINEAR_API_KEY = 'lin_api_test'
+    vi.mocked(writeFile).mockClear()
+    vi.mocked(mkdir).mockClear()
+    vi.mocked(readFile).mockClear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    delete process.env.LINEAR_API_KEY
+    process.argv[2] = ORIGINAL_ARGV2
+  })
+
+  describe('pull()', () => {
+    it('escreve WORKPLAN.md, docs de epic e sprint ativo', async () => {
+      const epic  = issue({ identifier: 'TWI-50', title: 'Epic Principal', parent: null })
+      const child = issue({ identifier: 'TWI-51', title: 'Sub-issue', parent: { identifier: 'TWI-50', title: 'Epic Principal' } })
+      mockFetchByQuery({ issues: [epic, child] })
+
+      await pull(config)
+
+      expect(mkdir).toHaveBeenCalledTimes(2) // epics dir + sprints dir
+      const paths = vi.mocked(writeFile).mock.calls.map(c => String(c[0]))
+      expect(paths.some(p => p.includes('WORKPLAN.md'))).toBe(true)
+      expect(paths.some(p => p.includes('twi-50'))).toBe(true)
+      expect(paths.some(p => p.includes('active.md'))).toBe(true)
+    })
+
+    it('sincroniza SPECS.md quando o documento existe no Linear', async () => {
+      mockFetchByQuery({
+        issues: [],
+        pullDocuments: [{ id: 'doc-1', title: 'SPECS', content: '# Spec do Linear' }],
+      })
+
+      await pull(config)
+
+      const specsCall = vi.mocked(writeFile).mock.calls.find(c => String(c[0]).includes('SPECS.md'))
+      expect(specsCall?.[1]).toBe('# Spec do Linear')
+    })
+
+    it('não escreve SPECS.md quando não há documento correspondente no Linear', async () => {
+      mockFetchByQuery({ issues: [], pullDocuments: [] })
+
+      await pull(config)
+
+      const specsCall = vi.mocked(writeFile).mock.calls.find(c => String(c[0]).includes('SPECS.md'))
+      expect(specsCall).toBeUndefined()
+    })
+
+    it('usa cycle ativo para filtrar issues do sprint quando existe', async () => {
+      const inCycle    = issue({ identifier: 'TWI-1', cycle: { name: 'Sprint 7', number: 7 } })
+      const otherCycle = issue({ identifier: 'TWI-2', cycle: { name: 'Sprint 6', number: 6 } })
+      mockFetchByQuery({ issues: [inCycle, otherCycle] })
+
+      await pull(config)
+
+      const sprintCall = vi.mocked(writeFile).mock.calls.find(c => String(c[0]).includes('active.md'))
+      expect(sprintCall?.[1] as string).toContain('TWI-1')
+      expect(sprintCall?.[1] as string).not.toContain('TWI-2')
+      expect(sprintCall?.[1] as string).toContain('Sprint 7')
+    })
+  })
+
+  describe('push()', () => {
+    it('atualiza documento existente quando já há SPECS/Especificação Técnica no Linear', async () => {
+      state.specsContent = '# Conteúdo local'
+      mockFetchByQuery({ pushExistingDocs: [{ id: 'doc-existing', title: 'SPECS' }] })
+
+      await push(config)
+
+      const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls
+      expect(calls.some(c => (JSON.parse((c[1] as RequestInit).body as string).query as string).includes('documentUpdate'))).toBe(true)
+      expect(calls.some(c => (JSON.parse((c[1] as RequestInit).body as string).query as string).includes('documentCreate'))).toBe(false)
+    })
+
+    it('cria documento novo quando não existe SPECS no Linear', async () => {
+      state.specsContent = '# Conteúdo local'
+      mockFetchByQuery({ pushExistingDocs: [] })
+
+      await push(config)
+
+      const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls
+      expect(calls.some(c => (JSON.parse((c[1] as RequestInit).body as string).query as string).includes('documentCreate'))).toBe(true)
+    })
+  })
+
+  describe('main()', () => {
+    it('modo --pull roda só o pull', async () => {
+      process.argv[2] = '--pull'
+      mockFetchByQuery({ issues: [] })
+
+      await main()
+
+      expect(vi.mocked(writeFile).mock.calls.some(c => String(c[0]).includes('WORKPLAN.md'))).toBe(true)
+    })
+
+    it('modo --push roda só o push', async () => {
+      process.argv[2] = '--push'
+      state.specsContent = '# Specs'
+      mockFetchByQuery({ pushExistingDocs: [{ id: 'doc-1', title: 'SPECS' }] })
+
+      await main()
+
+      expect(vi.mocked(writeFile).mock.calls.some(c => String(c[0]).includes('WORKPLAN.md'))).toBe(false)
+    })
+
+    it('modo --both roda pull e push', async () => {
+      process.argv[2] = '--both'
+      state.specsContent = '# Specs'
+      mockFetchByQuery({ issues: [], pushExistingDocs: [] })
+
+      await main()
+
+      expect(vi.mocked(writeFile).mock.calls.some(c => String(c[0]).includes('WORKPLAN.md'))).toBe(true)
+    })
+
+    it('sem argumento usa --pull como default', async () => {
+      process.argv.splice(2) // remove todos os args a partir do índice 2 → process.argv[2] === undefined
+      mockFetchByQuery({ issues: [] })
+
+      await main()
+
+      expect(vi.mocked(writeFile).mock.calls.some(c => String(c[0]).includes('WORKPLAN.md'))).toBe(true)
+    })
+
+    it('modo inválido encerra com exit code 1', async () => {
+      process.argv[2] = '--invalido'
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit chamado')
+      })
+
+      await expect(main()).rejects.toThrow('process.exit chamado')
+      expect(exitSpy).toHaveBeenCalledWith(1)
+
+      exitSpy.mockRestore()
+    })
   })
 })

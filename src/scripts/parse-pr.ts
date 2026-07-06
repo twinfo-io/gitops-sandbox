@@ -19,8 +19,10 @@ export interface PRFields {
   isStealth: boolean         // sem linearId e tem title
 }
 
+// [ \t]* (não \s*) depois dos dois-pontos: \s inclui \n, o que faria um campo vazio
+// "roubar" o valor do campo seguinte na próxima linha.
 const FIELD_RE = (key: string) =>
-  new RegExp(`^${key}:[\\s]*(.+?)\\s*$`, 'm')
+  new RegExp(`^${key}:[ \\t]*(.+?)[ \\t]*$`, 'm')
 
 const AGENT_LABELS = new Set([
   'agent:generate-code',
@@ -63,6 +65,7 @@ export function parsePRBody(body: string): PRFields {
 
 // ── CLI ────────────────────────────────────────────────────────────────────────
 
+/* v8 ignore start -- entrypoint de processo, exercido via execução real da CLI, não em unit test */
 if (process.argv[1]?.endsWith('parse-pr.ts') || process.argv[1]?.endsWith('parse-pr.js')) {
   const chunks: Buffer[] = []
   process.stdin.on('data', c => chunks.push(c))
@@ -72,3 +75,4 @@ if (process.argv[1]?.endsWith('parse-pr.ts') || process.argv[1]?.endsWith('parse
     process.stdout.write(JSON.stringify(result, null, 2) + '\n')
   })
 }
+/* v8 ignore stop */

@@ -192,7 +192,7 @@ async function createIssue(
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const demandFile = process.argv[2]
   if (!demandFile) {
     console.error('Uso: npx tsx src/scripts/create-demand.ts <arquivo.md>')
@@ -231,9 +231,11 @@ async function main(): Promise<void> {
   process.stdout.write(linearId + '\n')
 }
 
+/* v8 ignore start -- entrypoint de processo, exercido via execução real da CLI, não em unit test */
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch(err => {
     console.error('[create-demand] Erro:', (err as Error).message)
     process.exit(1)
   })
 }
+/* v8 ignore stop */

@@ -160,7 +160,7 @@ export function buildComment(input: ReportInput): string {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const issueIdentifier = process.env.ISSUE_ID
   const agentLabel      = process.env.AGENT_LABEL
   const rawStatus       = process.env.AGENT_STATUS ?? 'failure'
@@ -198,9 +198,11 @@ async function main(): Promise<void> {
   console.log(`[report-result] ✅ Linear atualizado: ${issueIdentifier} → ${stateKey}`)
 }
 
+/* v8 ignore start -- entrypoint de processo, exercido via execução real da CLI, não em unit test */
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch(err => {
     console.error('[report-result] Erro:', (err as Error).message)
     process.exit(1)
   })
 }
+/* v8 ignore stop */

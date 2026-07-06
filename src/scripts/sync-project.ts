@@ -75,7 +75,7 @@ async function linearQuery<T>(query: string, variables: Record<string, unknown>)
 
 // ── Pull: Linear → local ──────────────────────────────────────────────────────
 
-async function pull(config: SyncConfig): Promise<void> {
+export async function pull(config: SyncConfig): Promise<void> {
   console.log('[sync:pull] Buscando dados do Linear...')
 
   const data = await linearQuery<{
@@ -154,7 +154,7 @@ async function pull(config: SyncConfig): Promise<void> {
 
 // ── Push: local → Linear Documents ───────────────────────────────────────────
 
-async function push(config: SyncConfig): Promise<void> {
+export async function push(config: SyncConfig): Promise<void> {
   console.log('[sync:push] Enviando SPECS.md para Linear...')
 
   const specsContent = await readFile(join(ROOT, config.paths.specs), 'utf8')
@@ -298,7 +298,7 @@ function toSlug(s: string): string {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const config: SyncConfig = JSON.parse(
     await readFile(join(ROOT, 'sync-config.json'), 'utf8')
   )
@@ -313,9 +313,11 @@ async function main(): Promise<void> {
   process.exit(1)
 }
 
+/* v8 ignore start -- entrypoint de processo, exercido via execução real da CLI, não em unit test */
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch(err => {
     console.error('[sync] Erro:', (err as Error).message)
     process.exit(1)
   })
 }
+/* v8 ignore stop */
