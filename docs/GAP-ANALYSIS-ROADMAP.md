@@ -111,19 +111,21 @@ Fazer do gitops-sandbox a camada padrão de execução segura de agentes Claude 
 
 ### Épicos e features (priorizado por impacto/esforço/risco de segurança)
 
-| # | Épico | Impacto | Esforço | Risco se não fizer | Prioridade |
-|---|---|---|---|---|---|
-| E1 | **Gate de segurança crítico**: write-access gating + sanitização anti-prompt-injection de conteúdo Linear | Alto | Baixo-Médio | **Crítico** (CVE análogo já existe no PR-Agent) | **P0** |
-| E2 | **Economia de tokens**: prompt caching Anthropic + roteamento de modelo por label | Médio-Alto | Baixo (config) | Custo crescente sem controle | **P0** |
-| E3 | Corrigir gap `agent:create-specs`: label existe no webhook (`AGENT_LABELS`) mas não tem branch de prompt implementada no `gitops.yml` | Médio | Baixo | Label "morta" gera confusão/erro silencioso | **P0** |
-| E4 | Sandboxing de subprocesso + scrubbing de secrets do ambiente do agente | Alto | Médio | Vazamento de credencial em execução comprometida | **P1** |
-| E5 | Gate `verification-before-completion`: agente só reporta sucesso ao Linear após ler output real de teste/build | Alto | Baixo-Médio | Falso positivo de sucesso no Linear | **P1** |
-| E6 | Gate de PRD/spec aprovada antes de `agent:generate-code` (conectar skills PM já existentes como estágio formal) | Alto | Médio | Código gerado sem spec clara, retrabalho | **P1** |
-| E7 | Framework de eval/certificação dos prompts dinâmicos por label (estático + LLM-judge) | Médio | Médio | Degradação silenciosa de qualidade dos prompts ao longo do tempo | **P2** |
-| E8 | Dashboard/observability agregada (taxa de sucesso por label, custo de token, tempo médio) fora do Linear | Médio | Médio-Alto | Sem visibilidade se Linear cair ou para decisões de expansão | **P2** |
-| E9 | Isolamento de subtarefa com ledger de progresso em arquivo (subagent-driven-development) | Médio | Alto | Tarefas grandes falham monoliticamente sem checkpoint | **P3** |
-| E10 | Geração automática de testes a partir do diff (padrão Keploy) | Médio | Médio | Cobertura de teste não cresce junto com código gerado por agente | **P3** |
-| E11 | Framework de auto-fix/self-healing de CI | Baixo (mercado imaturo) | Alto | Nenhum — categoria sem solução madura em lugar nenhum | **Backlog / não priorizar agora** |
+| # | Épico | Impacto | Esforço | Risco se não fizer | Prioridade | Status | Linear | Commit |
+|---|---|---|---|---|---|---|---|---|
+| E1 | **Gate de segurança crítico**: write-access gating + sanitização anti-prompt-injection de conteúdo Linear | Alto | Baixo-Médio | **Crítico** (CVE análogo já existe no PR-Agent) | **P0** | ✅ Done | [TWI-294](https://linear.app/twinfo-lifters/issue/TWI-294) | `0abde47` |
+| E2 | **Economia de tokens**: prompt caching Anthropic + roteamento de modelo por label | Médio-Alto | Baixo (config) | Custo crescente sem controle | **P0** | ✅ Done | [TWI-295](https://linear.app/twinfo-lifters/issue/TWI-295) | `1f400bb` |
+| E3 | Corrigir gap `agent:create-specs`: label existe no webhook (`AGENT_LABELS`) mas não tem branch de prompt implementada no `gitops.yml` | Médio | Baixo | Label "morta" gera confusão/erro silencioso | **P0** | ✅ Done | [TWI-296](https://linear.app/twinfo-lifters/issue/TWI-296) | `86a4dff` |
+| E4 | Sandboxing de subprocesso + scrubbing de secrets do ambiente do agente | Alto | Médio | Vazamento de credencial em execução comprometida | **P1** | ✅ Done (parcial — escopo de secrets/tools; sandboxing de SO não feito) | [TWI-297](https://linear.app/twinfo-lifters/issue/TWI-297) | `5eb08b6` |
+| E5 | Gate `verification-before-completion`: agente só reporta sucesso ao Linear após ler output real de teste/build | Alto | Baixo-Médio | Falso positivo de sucesso no Linear | **P1** | ✅ Done (parcial — só generate-code/create-specs, branch previsível) | [TWI-298](https://linear.app/twinfo-lifters/issue/TWI-298) | `d5d08f8` |
+| E6 | Gate de PRD/spec aprovada antes de `agent:generate-code` (conectar skills PM já existentes como estágio formal) | Alto | Médio | Código gerado sem spec clara, retrabalho | **P1** | ✅ Done | [TWI-299](https://linear.app/twinfo-lifters/issue/TWI-299) | `7fd8b49` |
+| E7 | Framework de eval/certificação dos prompts dinâmicos por label (estático + LLM-judge) | Médio | Médio | Degradação silenciosa de qualidade dos prompts ao longo do tempo | **P2** | 📋 A fazer | [TWI-300](https://linear.app/twinfo-lifters/issue/TWI-300) | — |
+| E8 | Dashboard/observability agregada (taxa de sucesso por label, custo de token, tempo médio) fora do Linear | Médio | Médio-Alto | Sem visibilidade se Linear cair ou para decisões de expansão | **P2** | 📋 A fazer | [TWI-301](https://linear.app/twinfo-lifters/issue/TWI-301) | — |
+| E9 | Isolamento de subtarefa com ledger de progresso em arquivo (subagent-driven-development) | Médio | Alto | Tarefas grandes falham monoliticamente sem checkpoint | **P3** | 📋 Backlog | [TWI-302](https://linear.app/twinfo-lifters/issue/TWI-302) | — |
+| E10 | Geração automática de testes a partir do diff (padrão Keploy) | Médio | Médio | Cobertura de teste não cresce junto com código gerado por agente | **P3** | 📋 Backlog | [TWI-303](https://linear.app/twinfo-lifters/issue/TWI-303) | — |
+| E11 | Framework de auto-fix/self-healing de CI | Baixo (mercado imaturo) | Alto | Nenhum — categoria sem solução madura em lugar nenhum | **Backlog / não priorizar agora** | 📋 Backlog | [TWI-304](https://linear.app/twinfo-lifters/issue/TWI-304) | — |
+
+**Extra não previsto no plano original:** cobertura de testes do repo elevada de 56.33% para 99.55% (statements/lines), incluindo suite nova para `parse-pr.ts` (0%→100%) e correção de bug real (`FIELD_RE` cruzando linha) encontrado no processo. Commit `fed7384`.
 
 ### Critérios de sucesso / métricas de produto
 Ver seção 8.

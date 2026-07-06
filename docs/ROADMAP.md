@@ -78,6 +78,22 @@ Fases de evolução do sistema. Cada fase entrega valor independente — não é
 | Trilha de auditoria completa para compliance SPA/MF | 📋 A fazer | E2E |
 | Revisão de GOVERNANCE.md para repos de produto | 📋 A fazer | E2E |
 
+### Fase 5.5 — Hardening de Segurança/Qualidade/Custo ✅ Concluída
+
+Benchmark contra estado da arte open-source (Superpowers, claude-code-action, wshobson/agents e outros) identificou 11 gaps — detalhes completos em [GAP-ANALYSIS-ROADMAP.md](GAP-ANALYSIS-ROADMAP.md). Os 6 de maior prioridade (P0/P1) foram fechados:
+
+| Épico | Entrega | Linear | Commit |
+|---|---|---|---|
+| E1 | Gate de write-access (webhook) + anti-prompt-injection nos prompts | [TWI-294](https://linear.app/twinfo-lifters/issue/TWI-294) | `0abde47` |
+| E2 | Prompt caching Anthropic + roteamento de modelo por label | [TWI-295](https://linear.app/twinfo-lifters/issue/TWI-295) | `1f400bb` |
+| E3 | Fix: `agent:create-specs` sem branch de prompt implementada | [TWI-296](https://linear.app/twinfo-lifters/issue/TWI-296) | `86a4dff` |
+| E4 | Escopo de secrets e `allowedTools` por label (least-privilege) | [TWI-297](https://linear.app/twinfo-lifters/issue/TWI-297) | `5eb08b6` |
+| E5 | Verification-before-completion (re-roda typecheck+test no branch real) | [TWI-298](https://linear.app/twinfo-lifters/issue/TWI-298) | `d5d08f8` |
+| E6 | Gate de `spec-approved` antes de `agent:generate-code` | [TWI-299](https://linear.app/twinfo-lifters/issue/TWI-299) | `7fd8b49` |
+| — | Cobertura de testes: 56.33% → 99.55% (statements/lines), +34 testes | — | `fed7384` |
+
+E7-E11 (eval de prompts, observability, ledger de subtarefa, auto-test-gen, self-healing) seguem no backlog priorizado — ver GAP-ANALYSIS-ROADMAP.md.
+
 ---
 
 ## Fase 6 — Ciclo Auto-Corretivo 📋 Spec Pendente
