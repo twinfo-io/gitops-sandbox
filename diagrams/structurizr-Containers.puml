@@ -1,0 +1,46 @@
+@startuml
+title <size:24>Container View: gitops-sandbox</size>\n<size:24>Nivel 2 — as pecas que rodam de fato e como se chamam.</size>
+
+set separator none
+left to right direction
+
+<style>
+  root {
+    BackgroundColor: #ffffff
+    FontColor: #444444
+  }
+</style>
+
+!include <C4/C4>
+!include <C4/C4_Context>
+!include <C4/C4_Container>
+
+Person(PMDev, "PM / Dev", $descr="Escreve specs, adiciona labels de agent na issue, revisa e aprova PRs. Nunca faz merge automatico.", $tags="", $link="")
+System(Linear, "Linear", $descr="Fonte da verdade de tarefas. Emite webhooks, recebe comentarios, documentos e mudancas de estado via GraphQL.", $tags="", $link="")
+System(GitHub, "GitHub", $descr="Hospeda o codigo, roda o GitHub Actions e expõe a REST API de PRs/branches/workflow_dispatch.", $tags="", $link="")
+System(AnthropicAPI, "Anthropic API", $descr="Modelos Claude (Haiku 4.5 / Sonnet 5) que executam o raciocinio e as acoes do agente.", $tags="", $link="")
+
+System_Boundary("gitopssandbox_boundary", "gitops-sandbox", $tags="") {
+  Container(gitopssandbox.GitHubActionsPipeline, "GitHub Actions Pipeline", $techn="GitHub Actions / YAML + Bash", $descr="4 jobs: eval-prompts, auto-code-review, gitops-sync e run-agent. Roteia modelo/tools por label, executa o Claude e verifica o resultado.", $tags="", $link="")
+  Container(gitopssandbox.LinearWebhook, "Linear Webhook", $techn="Vercel Edge Function / TypeScript", $descr="Recebe o evento do Linear, valida a assinatura e aplica os gates de autorizacao antes de disparar a pipeline.", $tags="", $link="")
+  Container(gitopssandbox.ClaudeCodeCLI, "Claude Code CLI", $techn="Claude Code CLI", $descr="Motor de execucao do agente. Roda headless dentro do runner do job run-agent.", $tags="", $link="")
+  Container(gitopssandbox.ScriptsTypeScript, "Scripts TypeScript", $techn="Node.js / TypeScript", $descr="Sync bidirecional, parsing de PR, criacao de demanda furtiva e eval de prompts.", $tags="", $link="")
+  Container(gitopssandbox.syncconfigjson, "sync-config.json", $techn="JSON", $descr="IDs do workspace Linear (team, project, states) — nunca editado a mao.", $tags="", $link="")
+}
+
+Rel(PMDev, Linear, "Escreve specs, adiciona labels de agent na issue", $techn="", $tags="", $link="")
+Rel(PMDev, GitHub, "Revisa e aprova PRs gerados pelo agente", $techn="", $tags="", $link="")
+Rel(Linear, gitopssandbox.LinearWebhook, "Emite evento de issue", $techn="Webhook HTTPS + HMAC-SHA256", $tags="", $link="")
+Rel(gitopssandbox.LinearWebhook, GitHub, "Dispara workflow_dispatch", $techn="REST API", $tags="", $link="")
+Rel(GitHub, gitopssandbox.GitHubActionsPipeline, "Inicia a execucao do job no runner", $techn="", $tags="", $link="")
+Rel(gitopssandbox.GitHubActionsPipeline, gitopssandbox.ClaudeCodeCLI, "Invoca headless", $techn="claude --print", $tags="", $link="")
+Rel(gitopssandbox.ClaudeCodeCLI, AnthropicAPI, "Chama o modelo", $techn="HTTPS API", $tags="", $link="")
+Rel(gitopssandbox.ClaudeCodeCLI, GitHub, "Commita, cria branch, abre PR", $techn="git + REST API", $tags="", $link="")
+Rel(gitopssandbox.GitHubActionsPipeline, gitopssandbox.ScriptsTypeScript, "Executa sync, parsing e eval", $techn="npx tsx", $tags="", $link="")
+Rel(gitopssandbox.ScriptsTypeScript, Linear, "Le/escreve issues, comentarios e documentos", $techn="GraphQL API", $tags="", $link="")
+Rel(gitopssandbox.ScriptsTypeScript, gitopssandbox.syncconfigjson, "Le IDs do workspace", $techn="fs.readFile", $tags="", $link="")
+Rel(gitopssandbox.GitHubActionsPipeline, Linear, "Atualiza estado e posta comentario de resultado", $techn="GraphQL API (via scripts)", $tags="", $link="")
+
+SHOW_LEGEND(true)
+hide stereotypes
+@enduml

@@ -1,0 +1,38 @@
+@startuml
+title <size:24>Component View: gitops-sandbox - Linear Webhook</size>\n<size:24>Nivel 3 — dentro do Linear Webhook: a cadeia de gates de seguranca.</size>
+
+set separator none
+top to bottom direction
+
+<style>
+  root {
+    BackgroundColor: #ffffff
+    FontColor: #444444
+  }
+</style>
+
+!include <C4/C4>
+!include <C4/C4_Context>
+!include <C4/C4_Component>
+
+System_Boundary("gitopssandbox_boundary", "gitops-sandbox", $tags="") {
+  Container_Boundary("gitopssandbox.LinearWebhook_boundary", "Linear Webhook", $tags="") {
+    Component(gitopssandbox.LinearWebhook.verifyLinearSignature, "verifyLinearSignature", $techn="TypeScript function", $descr="Verifica HMAC-SHA256 do payload.", $tags="", $link="")
+    Component(gitopssandbox.LinearWebhook.isDispatchable, "isDispatchable", $techn="TypeScript function", $descr="Filtra labels agent:* / skill:* adicionadas neste evento.", $tags="", $link="")
+    Component(gitopssandbox.LinearWebhook.resolveTarget, "resolveTarget", $techn="TypeScript function", $descr="Resolve owner/repo alvo via REPO_MAP ou fallback single-repo.", $tags="", $link="")
+    Component(gitopssandbox.LinearWebhook.checkWriteAccess, "checkWriteAccess", $techn="TypeScript function", $descr="Mapeia o actor do Linear para um usuario GitHub e checa permissao write/admin.", $tags="", $link="")
+    Component(gitopssandbox.LinearWebhook.hasApprovedSpec, "hasApprovedSpec", $techn="TypeScript function", $descr="Bloqueia agent:generate-code se a issue nao tiver a label spec-approved.", $tags="", $link="")
+    Component(gitopssandbox.LinearWebhook.dispatchWorkflow, "dispatchWorkflow", $techn="TypeScript function", $descr="Dispara o workflow_dispatch na API do GitHub Actions.", $tags="", $link="")
+  }
+
+}
+
+Rel(gitopssandbox.LinearWebhook.verifyLinearSignature, gitopssandbox.LinearWebhook.isDispatchable, "Payload autentico, segue para filtragem de labels", $techn="", $tags="", $link="")
+Rel(gitopssandbox.LinearWebhook.isDispatchable, gitopssandbox.LinearWebhook.resolveTarget, "Ha label dispatchable, resolve o repo alvo", $techn="", $tags="", $link="")
+Rel(gitopssandbox.LinearWebhook.resolveTarget, gitopssandbox.LinearWebhook.checkWriteAccess, "Repo resolvido, checa autorizacao do actor", $techn="", $tags="", $link="")
+Rel(gitopssandbox.LinearWebhook.checkWriteAccess, gitopssandbox.LinearWebhook.hasApprovedSpec, "Actor autorizado, checa spec (se generate-code)", $techn="", $tags="", $link="")
+Rel(gitopssandbox.LinearWebhook.hasApprovedSpec, gitopssandbox.LinearWebhook.dispatchWorkflow, "Todos os gates passaram, dispara a pipeline", $techn="", $tags="", $link="")
+
+SHOW_LEGEND(true)
+hide stereotypes
+@enduml

@@ -183,6 +183,7 @@ O sistema detecta o arquivo sem `LINEAR_ID` no próximo push e cria a issue no L
 | [docs/GOVERNANCE.md](docs/GOVERNANCE.md) | Quem pode adicionar qual label, restrições por repo, incidentes |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Fases do projeto: concluído, em andamento, planejado |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Como contribuir, convenções de branch e commit |
+| [workspace.dsl](workspace.dsl) | C4 Model (Structurizr DSL) — Contexto, Container e Componente. Regenerar com `docker run --rm -v $PWD:/usr/local/structurizr structurizr/structurizr export -workspace /usr/local/structurizr/workspace.dsl -format plantuml/c4plantuml -output /usr/local/structurizr/diagrams` + `docker run --rm -v $PWD/diagrams:/data plantuml/plantuml -tpng '/data/*.puml'` |
 | [.specs/SPECS.md](.specs/SPECS.md) | Especificação técnica completa |
 
 ---

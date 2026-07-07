@@ -1,0 +1,44 @@
+@startuml
+title <size:24>Component View: gitops-sandbox - GitHub Actions Pipeline</size>\n<size:24>Nivel 3 — dentro do job run-agent: roteamento, execucao e verificacao.</size>
+
+set separator none
+top to bottom direction
+
+<style>
+  root {
+    BackgroundColor: #ffffff
+    FontColor: #444444
+  }
+</style>
+
+!include <C4/C4>
+!include <C4/C4_Context>
+!include <C4/C4_Component>
+
+System_Boundary("gitopssandbox_boundary", "gitops-sandbox", $tags="") {
+  Container_Boundary("gitopssandbox.GitHubActionsPipeline_boundary", "GitHub Actions Pipeline", $tags="") {
+    Component(gitopssandbox.GitHubActionsPipeline.Securitypreamble, "Security preamble", $techn="Bash", $descr="Marca conteudo de issue/PR/diff como dado, nunca instrucao (anti-prompt-injection).", $tags="", $link="")
+    Component(gitopssandbox.GitHubActionsPipeline.Modelrouter, "Model router", $techn="Bash", $descr="AGENT_MODEL_MAP — Haiku para tarefas simples, Sonnet para o resto.", $tags="", $link="")
+    Component(gitopssandbox.GitHubActionsPipeline.Toolsrouter, "Tools router", $techn="Bash", $descr="AGENT_TOOLS_MAP — least-privilege, so as tools que o label documentado usa.", $tags="", $link="")
+    Component(gitopssandbox.GitHubActionsPipeline.Promptbuilder, "Prompt builder", $techn="Bash", $descr="Monta o CLAUDE_PROMPT por label, validado por contrato estatico.", $tags="", $link="")
+    Component(gitopssandbox.GitHubActionsPipeline.ClaudeCLIinvocation, "Claude CLI invocation", $techn="Bash + Claude Code CLI", $descr="Roda claude --print --output-format json com modelo/tools/prompt resolvidos.", $tags="", $link="")
+    Component(gitopssandbox.GitHubActionsPipeline.Verifybranch, "Verify branch", $techn="Bash", $descr="Re-roda typecheck+test no branch real gerado (generate-code / create-specs).", $tags="", $link="")
+    Component(gitopssandbox.GitHubActionsPipeline.Observability, "Observability", $techn="Bash + GitHub Actions", $descr="Publica job summary e sobe o JSON bruto como artifact (90 dias).", $tags="", $link="")
+    Component(gitopssandbox.GitHubActionsPipeline.reportresultts, "report-result.ts", $techn="TypeScript / tsx", $descr="State machine label x status -> estado Linear + comentario.", $tags="", $link="")
+  }
+
+}
+
+Rel(gitopssandbox.GitHubActionsPipeline.Securitypreamble, gitopssandbox.GitHubActionsPipeline.Promptbuilder, "Prefixo de seguranca entra no prompt final", $techn="", $tags="", $link="")
+Rel(gitopssandbox.GitHubActionsPipeline.Modelrouter, gitopssandbox.GitHubActionsPipeline.ClaudeCLIinvocation, "Define --model", $techn="", $tags="", $link="")
+Rel(gitopssandbox.GitHubActionsPipeline.Toolsrouter, gitopssandbox.GitHubActionsPipeline.ClaudeCLIinvocation, "Define --allowedTools", $techn="", $tags="", $link="")
+Rel(gitopssandbox.GitHubActionsPipeline.Promptbuilder, gitopssandbox.GitHubActionsPipeline.ClaudeCLIinvocation, "Fornece o prompt via stdin", $techn="", $tags="", $link="")
+Rel(gitopssandbox.GitHubActionsPipeline.ClaudeCLIinvocation, gitopssandbox.GitHubActionsPipeline.Verifybranch, "Execucao concluida, aciona verificacao (se aplicavel)", $techn="", $tags="", $link="")
+Rel(gitopssandbox.GitHubActionsPipeline.Verifybranch, gitopssandbox.GitHubActionsPipeline.Observability, "Resultado real do typecheck/test alimenta o resumo", $techn="", $tags="", $link="")
+Rel(gitopssandbox.GitHubActionsPipeline.ClaudeCLIinvocation, gitopssandbox.GitHubActionsPipeline.Observability, "Duracao/tokens/custo do --output-format json", $techn="", $tags="", $link="")
+Rel(gitopssandbox.GitHubActionsPipeline.Observability, gitopssandbox.GitHubActionsPipeline.reportresultts, "Numeros de observability entram no comentario", $techn="", $tags="", $link="")
+Rel(gitopssandbox.GitHubActionsPipeline.Verifybranch, gitopssandbox.GitHubActionsPipeline.reportresultts, "Status real (nao so exit code da CLI) define o resultado", $techn="", $tags="", $link="")
+
+SHOW_LEGEND(true)
+hide stereotypes
+@enduml
