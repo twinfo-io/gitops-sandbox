@@ -76,6 +76,7 @@ export const PROMPT_CONTRACTS: Record<string, PromptContract> = {
   'agent:run-tests':       { requiresIssueId: true, requiresBranchPrefix: false, requiresPrMarker: false, maxLength: 500 },
   'agent:deploy':          { requiresIssueId: true, requiresBranchPrefix: false, requiresPrMarker: false, maxLength: 500 },
   'agent:code-review':     { requiresIssueId: true, requiresBranchPrefix: false, requiresPrMarker: false, maxLength: 500 },
+  'agent:suggest-tests':   { requiresIssueId: true, requiresBranchPrefix: false, requiresPrMarker: false, maxLength: 500 },
   'skill:*':               { requiresIssueId: true, requiresBranchPrefix: true,  requiresPrMarker: true,  maxLength: 500 },
   default:                 { requiresIssueId: true, requiresBranchPrefix: true,  requiresPrMarker: true,  maxLength: 500 },
 }

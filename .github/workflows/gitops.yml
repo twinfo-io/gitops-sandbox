@@ -216,6 +216,7 @@ jobs:
             ["agent:security-review"]="claude-sonnet-5"
             ["agent:generate-code"]="claude-sonnet-5"
             ["agent:create-specs"]="claude-sonnet-5"
+            ["agent:suggest-tests"]="claude-sonnet-5"
           )
           AGENT_MODEL="${AGENT_MODEL_MAP[$AGENT_LABEL]:-claude-sonnet-5}"
 
@@ -230,6 +231,7 @@ jobs:
             ["agent:security-review"]="Bash,Read,Edit,Write,mcp__github__create_branch,mcp__github__push_files,mcp__github__create_pull_request,mcp__claude_ai_Linear__save_issue,mcp__claude_ai_Linear__save_comment"
             ["agent:generate-code"]="Bash,Read,Edit,Write,mcp__github__create_branch,mcp__github__push_files,mcp__github__create_pull_request,mcp__claude_ai_Linear__get_issue,mcp__claude_ai_Linear__save_issue"
             ["agent:create-specs"]="Bash,Read,Edit,Write,mcp__github__create_branch,mcp__github__push_files,mcp__github__create_pull_request,mcp__claude_ai_Linear__get_issue,mcp__claude_ai_Linear__save_issue"
+            ["agent:suggest-tests"]="Bash,Read,mcp__claude_ai_Linear__save_comment,mcp__claude_ai_Linear__save_issue"
           )
           AGENT_TOOLS="${AGENT_TOOLS_MAP[$AGENT_LABEL]:-$FULL_TOOLS}"
 
@@ -237,7 +239,7 @@ jobs:
           if [ -n "$AGENT_PROMPT" ]; then
             CLAUDE_PROMPT="$AGENT_PROMPT"
           elif [ "$AGENT_LABEL" = "agent:generate-code" ]; then
-            CLAUDE_PROMPT="Read issue ${ISSUE_ID} from Linear. Analyze the codebase using CLAUDE.md as context. Generate a complete implementation. IMPORTANT: create branch named agent/${ISSUE_ID,,}-implementation (must start with 'agent/'). Commit and push. Open a PR — the PR body MUST start with the line: <!-- agent-created: true --> followed by the issue title and a link to ${ISSUE_ID}. Update Linear issue status to In Review after the PR is opened."
+            CLAUDE_PROMPT="Read issue ${ISSUE_ID} from Linear. Analyze the codebase using CLAUDE.md as context. Maintain a progress ledger at .gitops/ledger/${ISSUE_ID}.md, appending one line after each major step (analyzed codebase / implemented / ran typecheck+test / committed / opened PR) — commit this file together with your changes, so progress is recoverable if the run is interrupted. Generate a complete implementation. IMPORTANT: create branch named agent/${ISSUE_ID,,}-implementation (must start with 'agent/'). Commit and push. Open a PR — the PR body MUST start with the line: <!-- agent-created: true --> followed by the issue title and a link to ${ISSUE_ID}. Update Linear issue status to In Review after the PR is opened."
           elif [ "$AGENT_LABEL" = "agent:run-tests" ]; then
             CLAUDE_PROMPT="Run the test suite for this project (check package.json for test command). Post results as a comment on Linear issue ${ISSUE_ID}. Update issue to Done if all pass, In Progress if any fail."
           elif [ "$AGENT_LABEL" = "agent:security-review" ]; then
@@ -246,8 +248,10 @@ jobs:
             CLAUDE_PROMPT="Trigger the deploy pipeline for this project. Monitor status. Post result (success URL or failure logs) as comment on Linear issue ${ISSUE_ID} and update issue status accordingly."
           elif [ "$AGENT_LABEL" = "agent:code-review" ]; then
             CLAUDE_PROMPT="Run /code-review on the latest PR diff. For each finding create a sub-issue on Linear under ${ISSUE_ID} with label agent-created. Auto-fixable findings get agent:generate-code label. Do NOT open any PRs yourself."
+          elif [ "$AGENT_LABEL" = "agent:suggest-tests" ]; then
+            CLAUDE_PROMPT="Read the latest PR diff for issue ${ISSUE_ID}. Identify code paths changed by the diff that have no test coverage. Post a comment on Linear issue ${ISSUE_ID} listing concrete suggested test cases (describe/it names and what each should assert) — do NOT write or commit any test file yourself, do NOT open any PR. This is a suggestion only, for a human to implement."
           elif [ "$AGENT_LABEL" = "agent:create-specs" ]; then
-            CLAUDE_PROMPT="Read issue ${ISSUE_ID} from Linear — it contains discovery notes/briefing for a new spec. Using CLAUDE.md as context and this repo's PM skills (/create-prd or /write-spec, whichever is available) as reference structure, generate or update .specs/SPECS.md and .specs/WORKPLAN.md reflecting the requirement. Do NOT modify any file outside .specs/ or docs/. IMPORTANT: create branch named agent/${ISSUE_ID,,}-specs (must start with 'agent/'). Commit and push. Open a PR — the PR body MUST start with the line: <!-- agent-created: true --> followed by the issue title and a link to ${ISSUE_ID}. Update Linear issue status to In Review after the PR is opened."
+            CLAUDE_PROMPT="Read issue ${ISSUE_ID} from Linear — it contains discovery notes/briefing for a new spec. Using CLAUDE.md as context and this repo's PM skills (/create-prd or /write-spec, whichever is available) as reference structure, generate or update .specs/SPECS.md and .specs/WORKPLAN.md reflecting the requirement. Maintain a progress ledger at .gitops/ledger/${ISSUE_ID}.md, appending one line per major step, committed together with your changes. Do NOT modify any file outside .specs/, docs/ or .gitops/ledger/. IMPORTANT: create branch named agent/${ISSUE_ID,,}-specs (must start with 'agent/'). Commit and push. Open a PR — the PR body MUST start with the line: <!-- agent-created: true --> followed by the issue title and a link to ${ISSUE_ID}. Update Linear issue status to In Review after the PR is opened."
           elif [[ "$AGENT_LABEL" == skill:* ]]; then
             SKILL_NAME="${AGENT_LABEL#skill:}"
             CLAUDE_PROMPT="Read Linear issue ${ISSUE_ID}. Execute the /${SKILL_NAME} skill using CLAUDE.md as context. If the skill produces files or a PR: branch MUST start with 'agent/' and PR body MUST start with: <!-- agent-created: true --> Update the Linear issue status when complete."

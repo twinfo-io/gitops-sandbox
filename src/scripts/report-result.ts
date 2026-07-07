@@ -55,6 +55,7 @@ export function targetState(agentLabel: string, status: AgentStatus): string {
     'agent:deploy':          'done',        // deploy executado
     'agent:code-review':     'inProgress', // sub-issues criadas, humano revisa
     'agent:create-specs':    'inProgress',
+    'agent:suggest-tests':   'inProgress', // sugestões postadas, humano decide se implementa
   }
 
   // skill:* → inProgress (humano revisa output)
@@ -149,6 +150,10 @@ export function buildComment(input: ReportInput): string {
     'agent:code-review': {
       success: 'Sub-issues criadas para cada finding. Labels agent:generate-code aplicadas nos corrigíveis.',
       failure: 'Code review falhou. Verifique os logs.',
+    },
+    'agent:suggest-tests': {
+      success: 'Sugestões de teste postadas no comentário. Nenhum arquivo foi criado ou commitado — implementação fica a critério humano.',
+      failure: 'Falha ao sugerir testes. Verifique os logs.',
     },
   }
 

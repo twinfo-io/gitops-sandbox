@@ -6,7 +6,7 @@ import { targetState, buildComment, main, type ReportInput } from './report-resu
 describe('targetState — state machine agent × status', () => {
   const ALL_AGENTS = [
     'agent:generate-code', 'agent:run-tests', 'agent:deploy',
-    'agent:security-review', 'agent:code-review', 'skill:create-prd',
+    'agent:security-review', 'agent:code-review', 'agent:suggest-tests', 'skill:create-prd',
   ]
 
   it('falha sempre → todo', () => {
@@ -33,6 +33,10 @@ describe('targetState — state machine agent × status', () => {
 
   it('code-review sucesso → inProgress (sub-issues criadas)', () => {
     expect(targetState('agent:code-review', 'success')).toBe('inProgress')
+  })
+
+  it('suggest-tests sucesso → inProgress (humano decide se implementa)', () => {
+    expect(targetState('agent:suggest-tests', 'success')).toBe('inProgress')
   })
 
   it('skill:* qualquer → inProgress', () => {

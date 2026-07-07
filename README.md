@@ -59,6 +59,7 @@ Ciclo completo: **label adicionada → PR aberto → card fechado**, sem tocar n
 | `agent:security-review` | Scan de vulnerabilidades e CVEs | Sub-issues com `severity:*` + fixes sugeridos | < 10 min | Nenhuma — read-only |
 | `agent:deploy` | Dispara pipeline de deploy | Comentário com URL ou logs de falha | Depende do pipeline | `trigger:production-approved` obrigatório |
 | `agent:create-specs` | Gera especificação técnica a partir da issue | Documento em `.specs/` commitado | < 10 min | Nenhuma |
+| `agent:suggest-tests` | Lê o diff do PR e identifica lacunas de cobertura | Comentário no Linear com casos de teste sugeridos (describe/it) | < 10 min | Nenhuma — read-only, não commita nem abre PR |
 
 ### Fluxo automático sem label (GitOps passivo)
 
@@ -195,6 +196,7 @@ O sistema detecta o arquivo sem `LINEAR_ID` no próximo push e cria a issue no L
 - **Economia de tokens:** `--exclude-dynamic-system-prompt-sections` mantém o system prompt estável entre runs de CI (cada run é uma máquina nova), maximizando reuso de prompt cache; `--model` roteia por label (Haiku para tarefas simples/read-only como `agent:run-tests`/`agent:deploy`, Sonnet para as demais) em vez de um modelo único hardcoded
 - Agents operam com escopo mínimo — `ANTHROPIC_API_KEY`, `LINEAR_API_KEY`, `GITHUB_TOKEN` (sem admin), escopados por label: `agent:run-tests` não recebe `GITHUB_TOKEN` (read-only, sem interação com GitHub); `allowedTools` do Claude é resolvido por label (ex: `agent:run-tests` não recebe tools de Edit/Write/PR)
 - **Verification-before-completion:** para `agent:generate-code` e `agent:create-specs`, o CI re-roda `typecheck`+`test` de verdade no branch gerado antes de reportar sucesso ao Linear — o exit code do `claude --print` sozinho não é confiável o bastante (só diz que a CLI não crashou, não que o código funciona)
+- **Ledger de progresso:** `agent:generate-code` e `agent:create-specs` são instruídos a manter `.gitops/ledger/{ISSUE_ID}.md`, com uma linha por etapa concluída (analisou codebase, implementou, rodou typecheck+test, commitou, abriu PR), commitado junto com as mudanças — se a execução for interrompida no meio, dá pra ver exatamente onde parou sem precisar reconstruir pelo log do Actions
 - **Eval de prompts:** `npm run eval:prompts` valida estaticamente (sem custo de token, roda em todo push/PR) se cada `CLAUDE_PROMPT` do `gitops.yml` cumpre seu contrato (referencia `${ISSUE_ID}`, menciona convenção de branch/PR quando aplicável, não excede tamanho razoável). `npm run eval:prompts:llm` é a camada com LLM-judge (custa token) — rodar manualmente ao editar prompts de forma substancial, não integrado ao pipeline automático
 - **Observability por execução:** `run-agent` roda com `--output-format json`, captura duração/tokens/custo e publica um job summary no GitHub Actions + artifact bruto (`agent-output-{issue}-{run}`, 90 dias de retenção) — trilha de auditoria que sobrevive mesmo se a API do Linear cair. Os mesmos números aparecem no comentário que o agent posta na issue
 - **PRs de agents nunca são auto-mergeados** — sempre requerem aprovação humana
