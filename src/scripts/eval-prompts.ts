@@ -73,12 +73,13 @@ export const PROMPT_CONTRACTS: Record<string, PromptContract> = {
   // maxLength mais alto que os demais: metodologia feature-dev adaptada (TWI-337 / E13)
   // descreve 4 fases (explore/design/implement/review) em texto, naturalmente mais longa.
   'agent:generate-code':   { requiresIssueId: true, requiresBranchPrefix: true,  requiresPrMarker: true,  maxLength: 2200 },
-  'agent:create-specs':    { requiresIssueId: true, requiresBranchPrefix: true,  requiresPrMarker: true,  maxLength: 1000 },
+  'agent:create-specs':    { requiresIssueId: true, requiresBranchPrefix: true,  requiresPrMarker: true,  maxLength: 1200 },
   'agent:security-review': { requiresIssueId: true, requiresBranchPrefix: true,  requiresPrMarker: true,  maxLength: 1000 },
   'agent:run-tests':       { requiresIssueId: true, requiresBranchPrefix: false, requiresPrMarker: false, maxLength: 500 },
   'agent:deploy':          { requiresIssueId: true, requiresBranchPrefix: false, requiresPrMarker: false, maxLength: 500 },
   'agent:code-review':     { requiresIssueId: true, requiresBranchPrefix: false, requiresPrMarker: false, maxLength: 500 },
   'agent:suggest-tests':   { requiresIssueId: true, requiresBranchPrefix: false, requiresPrMarker: false, maxLength: 500 },
+  'agent:generate-tests':  { requiresIssueId: true, requiresBranchPrefix: true,  requiresPrMarker: true,  maxLength: 1000 },
   'skill:*':               { requiresIssueId: true, requiresBranchPrefix: true,  requiresPrMarker: true,  maxLength: 500 },
   default:                 { requiresIssueId: true, requiresBranchPrefix: true,  requiresPrMarker: true,  maxLength: 500 },
 }

@@ -24,6 +24,7 @@ const AGENT_LABELS = new Set([
   'agent:code-review',
   'agent:create-specs',
   'agent:suggest-tests',
+  'agent:generate-tests',
 ])
 
 const SKILL_LABEL_PREFIX = 'skill:'

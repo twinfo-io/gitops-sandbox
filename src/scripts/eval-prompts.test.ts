@@ -159,6 +159,7 @@ describe('evaluateWorkflow', () => {
       'agent:deploy':          'Deploy for ${ISSUE_ID}',
       'agent:code-review':     'Review PR for ${ISSUE_ID}',
       'agent:suggest-tests':   'Suggest tests for ${ISSUE_ID}',
+      'agent:generate-tests':  'Write tests for ${ISSUE_ID}. Branch agent/x. PR: agent-created: true',
       'skill:*':               'Execute skill for ${ISSUE_ID}. Branch agent/x. PR: agent-created: true',
       default:                 'Execute task for ${ISSUE_ID}. Branch agent/x. PR: agent-created: true',
     })

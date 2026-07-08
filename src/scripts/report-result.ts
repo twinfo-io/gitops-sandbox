@@ -56,6 +56,7 @@ export function targetState(agentLabel: string, status: AgentStatus): string {
     'agent:code-review':     'inProgress', // sub-issues criadas, humano revisa
     'agent:create-specs':    'inProgress',
     'agent:suggest-tests':   'inProgress', // sugestões postadas, humano decide se implementa
+    'agent:generate-tests':  'inProgress', // PR com testes reais aberto, aguarda review humano
   }
 
   // skill:* → inProgress (humano revisa output)
@@ -154,6 +155,10 @@ export function buildComment(input: ReportInput): string {
     'agent:suggest-tests': {
       success: 'Sugestões de teste postadas no comentário. Nenhum arquivo foi criado ou commitado — implementação fica a critério humano.',
       failure: 'Falha ao sugerir testes. Verifique os logs.',
+    },
+    'agent:generate-tests': {
+      success: 'PR aberto com testes reais cobrindo o gap identificado. Aguardando review humano antes do merge.',
+      failure: 'Falha ao gerar testes. Verifique os logs.',
     },
   }
 

@@ -182,6 +182,16 @@ describe('dispatch agent:*', () => {
     expect(res.status).toBe(200)
     expect(json.dispatched).toContain('agent:suggest-tests')
   })
+
+  it('dispara workflow para agent:generate-tests', async () => {
+    const body = issuePayload({ labelName: 'agent:generate-tests' })
+    const req  = makeRequest(body)
+    const res  = await handler(req)
+    const json = await res.json() as { dispatched: string[] }
+
+    expect(res.status).toBe(200)
+    expect(json.dispatched).toContain('agent:generate-tests')
+  })
 })
 
 // ── Dispatch skill:* ──────────────────────────────────────────────────────────

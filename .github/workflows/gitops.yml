@@ -231,6 +231,7 @@ jobs:
             ["agent:generate-code"]="claude-sonnet-5"
             ["agent:create-specs"]="claude-sonnet-5"
             ["agent:suggest-tests"]="claude-sonnet-5"
+            ["agent:generate-tests"]="claude-sonnet-5"
           )
           AGENT_MODEL="${AGENT_MODEL_MAP[$AGENT_LABEL]:-claude-sonnet-5}"
 
@@ -249,6 +250,7 @@ jobs:
             ["agent:generate-code"]="Bash,Read,Edit,Write,Grep,Glob,Task,mcp__github__create_branch,mcp__github__push_files,mcp__github__create_pull_request,mcp__claude_ai_Linear__get_issue,mcp__claude_ai_Linear__save_issue"
             ["agent:create-specs"]="Bash,Read,Edit,Write,mcp__github__create_branch,mcp__github__push_files,mcp__github__create_pull_request,mcp__claude_ai_Linear__get_issue,mcp__claude_ai_Linear__save_issue"
             ["agent:suggest-tests"]="Bash,Read,mcp__claude_ai_Linear__save_comment,mcp__claude_ai_Linear__save_issue"
+            ["agent:generate-tests"]="Bash,Read,Edit,Write,mcp__github__create_branch,mcp__github__push_files,mcp__github__create_pull_request,mcp__claude_ai_Linear__get_issue,mcp__claude_ai_Linear__save_issue"
           )
           AGENT_TOOLS="${AGENT_TOOLS_MAP[$AGENT_LABEL]:-$FULL_TOOLS}"
 
@@ -256,7 +258,7 @@ jobs:
           if [ -n "$AGENT_PROMPT" ]; then
             CLAUDE_PROMPT="$AGENT_PROMPT"
           elif [ "$AGENT_LABEL" = "agent:generate-code" ]; then
-            CLAUDE_PROMPT="Read issue ${ISSUE_ID} from Linear using CLAUDE.md as context. The spec was already reviewed and approved by a human (label spec-approved is required to reach this point) — treat it as authoritative, do not stop to ask clarifying questions, decide and document instead. Adapted from the feature-dev methodology (structured, autonomous — no human turn available): (1) EXPLORE: launch 2-3 parallel Task sub-agents to trace similar existing features and map relevant architecture/patterns in this codebase; each should return 5-10 key files; read those files yourself. (2) DESIGN: launch 2-3 parallel Task sub-agents to propose candidate approaches (minimal-change, clean-architecture, pragmatic-balance); compare trade-offs yourself and pick the one that best fits this specific task — you decide, no user available to ask. (3) IMPLEMENT: build the chosen approach following codebase conventions strictly. Maintain a progress ledger at .gitops/ledger/${ISSUE_ID}.md, appending one line after each phase (explore / design / implement / review / PR opened) — commit this file together with your changes so progress is recoverable if the run is interrupted. (4) REVIEW: launch 3 parallel Task sub-agents to review your diff — simplicity/DRY/elegance, bugs/correctness, project conventions; fix issues with confidence >= 80 yourself; list any unresolved lower-confidence findings under a 'Known follow-ups' heading in the PR body instead of blocking. IMPORTANT: create branch named agent/${ISSUE_ID,,}-implementation (must start with 'agent/'). Commit and push. Open a PR — the PR body MUST start with the line: <!-- agent-created: true --> followed by the issue title, a link to ${ISSUE_ID}, the architecture approach you chose and why, and any Known follow-ups from review. Update Linear issue status to In Review after the PR is opened."
+            CLAUDE_PROMPT="Read issue ${ISSUE_ID} from Linear using CLAUDE.md as context. The spec was already reviewed and approved by a human (label spec-approved is required to reach this point) — treat it as authoritative, do not stop to ask clarifying questions, decide and document instead. RESUME CHECK FIRST: check if branch agent/${ISSUE_ID,,}-implementation already exists (git fetch/ls-remote) from a previous interrupted run — if so, check it out and read .gitops/ledger/${ISSUE_ID}.md to see which phases are already marked done; resume from the next incomplete phase instead of restarting from scratch. Adapted from the feature-dev methodology (structured, autonomous — no human turn available): (1) EXPLORE: launch 2-3 parallel Task sub-agents to trace similar existing features and map relevant architecture/patterns in this codebase; each should return 5-10 key files; read those files yourself. (2) DESIGN: launch 2-3 parallel Task sub-agents to propose candidate approaches (minimal-change, clean-architecture, pragmatic-balance); compare trade-offs yourself and pick the one that best fits this specific task — you decide, no user available to ask. (3) IMPLEMENT: build the chosen approach following codebase conventions strictly. After EACH phase, append one line to .gitops/ledger/${ISSUE_ID}.md (explore / design / implement / review / PR opened) and commit+push immediately — so progress is recoverable if the run is interrupted mid-phase, not just at the end. (4) REVIEW: launch 3 parallel Task sub-agents to review your diff — simplicity/DRY/elegance, bugs/correctness, project conventions; fix issues with confidence >= 80 yourself; list any unresolved lower-confidence findings under a 'Known follow-ups' heading in the PR body instead of blocking. IMPORTANT: branch MUST start with 'agent/'. Open a PR — the PR body MUST start with the line: <!-- agent-created: true --> followed by the issue title, a link to ${ISSUE_ID}, the architecture approach you chose and why, and any Known follow-ups from review. Update Linear issue status to In Review after the PR is opened."
           elif [ "$AGENT_LABEL" = "agent:run-tests" ]; then
             CLAUDE_PROMPT="Run the test suite for this project (check package.json for test command). Post results as a comment on Linear issue ${ISSUE_ID}. Update issue to Done if all pass, In Progress if any fail."
           elif [ "$AGENT_LABEL" = "agent:security-review" ]; then
@@ -267,8 +269,10 @@ jobs:
             CLAUDE_PROMPT="Run /code-review on the latest PR diff. For each finding create a sub-issue on Linear under ${ISSUE_ID} with label agent-created. Auto-fixable findings get agent:generate-code label. Do NOT open any PRs yourself."
           elif [ "$AGENT_LABEL" = "agent:suggest-tests" ]; then
             CLAUDE_PROMPT="Read the latest PR diff for issue ${ISSUE_ID}. Identify code paths changed by the diff that have no test coverage. Post a comment on Linear issue ${ISSUE_ID} listing concrete suggested test cases (describe/it names and what each should assert) — do NOT write or commit any test file yourself, do NOT open any PR. This is a suggestion only, for a human to implement."
+          elif [ "$AGENT_LABEL" = "agent:generate-tests" ]; then
+            CLAUDE_PROMPT="Read the latest PR diff for issue ${ISSUE_ID}. Identify code paths changed by the diff that have no test coverage. Write real test file(s) covering those gaps, following this repo's existing test conventions and framework (check package.json and neighboring *.test.ts files for the pattern). Run the test suite yourself to confirm the new tests pass and don't break existing ones. Append one line to .gitops/ledger/${ISSUE_ID}.md per major step and commit+push immediately, so progress is recoverable if interrupted. IMPORTANT: create branch named agent/${ISSUE_ID,,}-tests (must start with 'agent/'). Open a PR — the PR body MUST start with the line: <!-- agent-created: true --> followed by the issue title, a link to ${ISSUE_ID}, and which coverage gaps were addressed. Update Linear issue status to In Review after the PR is opened."
           elif [ "$AGENT_LABEL" = "agent:create-specs" ]; then
-            CLAUDE_PROMPT="Read issue ${ISSUE_ID} from Linear — it contains discovery notes/briefing for a new spec. Using CLAUDE.md as context and this repo's PM skill /create-prd as reference structure, generate or update .specs/SPECS.md and .specs/WORKPLAN.md reflecting the requirement. Maintain a progress ledger at .gitops/ledger/${ISSUE_ID}.md, appending one line per major step, committed together with your changes. Do NOT modify any file outside .specs/, docs/ or .gitops/ledger/. IMPORTANT: create branch named agent/${ISSUE_ID,,}-specs (must start with 'agent/'). Commit and push. Open a PR — the PR body MUST start with the line: <!-- agent-created: true --> followed by the issue title and a link to ${ISSUE_ID}. Update Linear issue status to In Review after the PR is opened."
+            CLAUDE_PROMPT="Read issue ${ISSUE_ID} from Linear — it contains discovery notes/briefing for a new spec. RESUME CHECK FIRST: check if branch agent/${ISSUE_ID,,}-specs already exists from a previous interrupted run — if so, check it out and read .gitops/ledger/${ISSUE_ID}.md to see what's already done; resume instead of restarting. Using CLAUDE.md as context and this repo's PM skill /create-prd as reference structure, generate or update .specs/SPECS.md and .specs/WORKPLAN.md reflecting the requirement. Append one line to .gitops/ledger/${ISSUE_ID}.md after each major step and commit+push immediately (not just at the end), so progress is recoverable if interrupted. Do NOT modify any file outside .specs/, docs/ or .gitops/ledger/. IMPORTANT: create branch named agent/${ISSUE_ID,,}-specs (must start with 'agent/'). Open a PR — the PR body MUST start with the line: <!-- agent-created: true --> followed by the issue title and a link to ${ISSUE_ID}. Update Linear issue status to In Review after the PR is opened."
           elif [[ "$AGENT_LABEL" == skill:* ]]; then
             SKILL_NAME="${AGENT_LABEL#skill:}"
             CLAUDE_PROMPT="Read Linear issue ${ISSUE_ID}. Execute the /${SKILL_NAME} skill using CLAUDE.md as context. If the skill produces files or a PR: branch MUST start with 'agent/' and PR body MUST start with: <!-- agent-created: true --> Update the Linear issue status when complete."
@@ -338,13 +342,13 @@ jobs:
 
       # Verification-before-completion: o exit code do `claude --print` só diz que a CLI
       # rodou sem crashar — não que typecheck/test do branch gerado realmente passam.
-      # Para os labels com nome de branch previsível (generate-code, create-specs), re-roda
-      # typecheck+test no branch de verdade em vez de confiar na palavra do agent.
+      # Para os labels com nome de branch previsível (generate-code, create-specs, generate-tests),
+      # re-roda typecheck+test no branch de verdade em vez de confiar na palavra do agent.
       - name: Verify agent branch (typecheck + test)
         id: verify
         if: |
           always() &&
-          (github.event.inputs.agent_label == 'agent:generate-code' || github.event.inputs.agent_label == 'agent:create-specs')
+          (github.event.inputs.agent_label == 'agent:generate-code' || github.event.inputs.agent_label == 'agent:create-specs' || github.event.inputs.agent_label == 'agent:generate-tests')
         env:
           ISSUE_ID: ${{ github.event.inputs.issue_id }}
           AGENT_LABEL: ${{ github.event.inputs.agent_label }}
@@ -352,6 +356,8 @@ jobs:
           ISSUE_SLUG=$(echo "$ISSUE_ID" | tr '[:upper:]' '[:lower:]')
           if [ "$AGENT_LABEL" = "agent:generate-code" ]; then
             BRANCH="agent/${ISSUE_SLUG}-implementation"
+          elif [ "$AGENT_LABEL" = "agent:generate-tests" ]; then
+            BRANCH="agent/${ISSUE_SLUG}-tests"
           else
             BRANCH="agent/${ISSUE_SLUG}-specs"
           fi

@@ -23,6 +23,7 @@ Labels `agent:*` disparam execução autônoma de código em repositórios reais
 | `agent:deploy` | Tech lead ou acima | Requer `trigger:production-approved` na mesma issue |
 | `agent:create-specs` | PM ou tech lead | Nenhuma — apenas cria documentos |
 | `agent:suggest-tests` | Qualquer dev do time | Nenhuma — read-only, só comenta sugestões |
+| `agent:generate-tests` | Qualquer dev do time | Nenhuma — PR gerado requer review humano normal |
 
 ---
 
