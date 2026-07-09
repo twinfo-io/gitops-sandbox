@@ -111,6 +111,8 @@ Fazer do gitops-sandbox a camada padrão de execução segura de agentes Claude 
 
 ### Épicos e features (priorizado por impacto/esforço/risco de segurança)
 
+**Status: 15/16 concluídos** — só E11 (self-healing de CI) em backlog, por decisão explícita do usuário (mercado sem solução madura).
+
 | # | Épico | Impacto | Esforço | Risco se não fizer | Prioridade | Status | Linear | Commit |
 |---|---|---|---|---|---|---|---|---|
 | E1 | **Gate de segurança crítico**: write-access gating + sanitização anti-prompt-injection de conteúdo Linear | Alto | Baixo-Médio | **Crítico** (CVE análogo já existe no PR-Agent) | **P0** | ✅ Done | [TWI-294](https://linear.app/twinfo-lifters/issue/TWI-294) | `0abde47` |
