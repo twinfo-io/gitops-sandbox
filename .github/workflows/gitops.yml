@@ -166,16 +166,10 @@ jobs:
               git commit -m "chore(gitops): link demand $NEW_ID -- Demanda furtiva: $NEW_PATH"
               git push origin "$BOT_BRANCH"
 
+              PR_BODY=$'LINEAR_ID: '"$NEW_ID"$'\nTYPE: TASK\nTITLE: Backfill automático de LINEAR_ID\nREASON: Demanda furtiva detectada pelo gitops-sync, issue já criada no Linear — só falta linkar o ID no arquivo\nAGENTS:\n\n---\nBackfill automático, sem mudança de código. Arquivo renomeado: `'"$NEW_PATH"$'`.'
               gh pr create \
                 --title "chore(gitops): link demand $NEW_ID" \
-                --body "LINEAR_ID: $NEW_ID
-TYPE: TASK
-TITLE: Backfill automático de LINEAR_ID
-REASON: Demanda furtiva detectada pelo gitops-sync, issue já criada no Linear — só falta linkar o ID no arquivo
-AGENTS:
-
----
-Backfill automático, sem mudança de código. Arquivo renomeado: \`$NEW_PATH\`." \
+                --body "$PR_BODY" \
                 --label "skip-review" \
                 --base main --head "$BOT_BRANCH"
               gh pr merge "$BOT_BRANCH" --auto --squash \
@@ -212,16 +206,11 @@ Backfill automático, sem mudança de código. Arquivo renomeado: \`$NEW_PATH\`.
               git commit -m "chore(gitops): fatia épico $FIRST_ID -- $(echo "$NEW_IDS" | tr '\n' ' ')"
               git push origin "$BOT_BRANCH"
 
+              IDS_LIST=$(echo "$NEW_IDS" | tr '\n' ', ')
+              PR_BODY=$'LINEAR_ID: '"$FIRST_ID"$'\nTYPE: TASK\nTITLE: Backfill automático de IDs de épico/história\nREASON: Spec commitada em docs/epic-specs/ fatiada automaticamente — issues já criadas no Linear ('"$IDS_LIST"$')\nAGENTS:\n\n---\nBackfill automático, sem mudança de código.'
               gh pr create \
                 --title "chore(gitops): fatia épico $FIRST_ID a partir de $SPEC_FILE" \
-                --body "LINEAR_ID: $FIRST_ID
-TYPE: TASK
-TITLE: Backfill automático de IDs de épico/história
-REASON: Spec commitada em docs/epic-specs/ fatiada automaticamente — issues já criadas no Linear ($(echo "$NEW_IDS" | tr '\n' ', '))
-AGENTS:
-
----
-Backfill automático, sem mudança de código." \
+                --body "$PR_BODY" \
                 --label "skip-review" \
                 --base main --head "$BOT_BRANCH"
               gh pr merge "$BOT_BRANCH" --auto --squash \
