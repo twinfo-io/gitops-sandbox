@@ -39,16 +39,16 @@ Labels `agent:*` disparam execução autônoma de código em repositórios reais
 
 ## Branch protection — checar antes de replicar em outro repo
 
-`gitops-sandbox` tem branch protection em `main` exigindo 1 aprovação humana (TWI-349/E14) — só funciona porque o repo tem **20 colaboradores** com acesso. **GitHub nunca permite auto-aprovação, sem exceção, sem bypass** — não existe config ou API que resolva isso.
+`gitops-sandbox` tem branch protection em `main` (TWI-349/E14) exigindo apenas status check obrigatório (`Eval Prompts (static)`) + `enforce_admins`. **Sem** `required_pull_request_reviews` — foi testado com 1 aprovação obrigatória e revertido logo depois: apesar do repo ter **20 colaboradores** nominais, o uso real é solo (1 dev), e **GitHub nunca permite auto-aprovação, sem exceção, sem bypass** — exigir review travaria todo merge, inclusive do owner.
 
-**Antes de aplicar a mesma config em outro repo**, checar quantas pessoas têm write access:
+**Antes de aplicar a mesma config em outro repo**, checar quantas pessoas *de fato revisam PR* (não só quantas têm write access nominal):
 
 ```bash
 gh api repos/{owner}/{repo}/collaborators --jq '.[].login' | wc -l
 ```
 
-- **Time com 2+ pessoas com write access:** aplicar igual ao gitops-sandbox (1 aprovação + status check obrigatório).
-- **Repo solo ou dupla sem revisor disponível:** **não** exigir `required_pull_request_reviews` — só exigir status checks (typecheck/test/eval-prompts). Sem isso, o repo trava permanentemente (nenhum PR consegue ser mergeado, nem pelo owner).
+- **Time com 2+ pessoas que efetivamente revisam PR:** exigir `required_pull_request_reviews` (1 aprovação) + status check obrigatório.
+- **Repo solo ou sem revisor disponível (caso do gitops-sandbox):** **não** exigir `required_pull_request_reviews` — só status checks (typecheck/test/eval-prompts). Sem isso, o repo trava permanentemente (nenhum PR consegue ser mergeado, nem pelo owner).
 
 Ver `docs/RUNBOOK.md` § Emergência para o procedimento de desabilitar/reabilitar branch protection caso precise ajustar depois de já aplicada.
 

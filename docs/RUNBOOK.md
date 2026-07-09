@@ -109,7 +109,7 @@ Se `ANTHROPIC_API_KEY`, `LINEAR_API_KEY` ou `GITHUB_TOKEN` aparecerem em logs ou
 
 ## Emergência: bypass de branch protection (main)
 
-`main` exige 1 aprovação + status check `Eval Prompts (static)` + `enforce_admins` (nenhum bypass automático, TWI-349/E14). Numa emergência real (hotfix crítico sem revisor disponível), o owner do repo pode desabilitar temporariamente:
+`main` exige status check `Eval Prompts (static)` + `enforce_admins` (nenhum bypass automático, TWI-349/E14). **Sem** `required_pull_request_reviews` — repo é solo na prática, exigir aprovação travaria todo merge (GitHub nunca permite auto-aprovação). Ver `docs/GOVERNANCE.md` § branch protection. Numa emergência real (ex: precisar reconfigurar algo que só admin pode via API), o owner do repo pode desabilitar temporariamente:
 
 ```bash
 # Desabilita (temporário — reabilitar assim que possível)
@@ -120,7 +120,7 @@ cat <<'EOF' | gh api --method PUT repos/twinfo-io/gitops-sandbox/branches/main/p
 {
   "required_status_checks": { "strict": true, "contexts": ["Eval Prompts (static)"] },
   "enforce_admins": true,
-  "required_pull_request_reviews": { "required_approving_review_count": 1, "dismiss_stale_reviews": true },
+  "required_pull_request_reviews": null,
   "restrictions": null
 }
 EOF
