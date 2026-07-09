@@ -37,6 +37,23 @@ Labels `agent:*` disparam execução autônoma de código em repositórios reais
 
 ---
 
+## Branch protection — checar antes de replicar em outro repo
+
+`gitops-sandbox` tem branch protection em `main` exigindo 1 aprovação humana (TWI-349/E14) — só funciona porque o repo tem **20 colaboradores** com acesso. **GitHub nunca permite auto-aprovação, sem exceção, sem bypass** — não existe config ou API que resolva isso.
+
+**Antes de aplicar a mesma config em outro repo**, checar quantas pessoas têm write access:
+
+```bash
+gh api repos/{owner}/{repo}/collaborators --jq '.[].login' | wc -l
+```
+
+- **Time com 2+ pessoas com write access:** aplicar igual ao gitops-sandbox (1 aprovação + status check obrigatório).
+- **Repo solo ou dupla sem revisor disponível:** **não** exigir `required_pull_request_reviews` — só exigir status checks (typecheck/test/eval-prompts). Sem isso, o repo trava permanentemente (nenhum PR consegue ser mergeado, nem pelo owner).
+
+Ver `docs/RUNBOOK.md` § Emergência para o procedimento de desabilitar/reabilitar branch protection caso precise ajustar depois de já aplicada.
+
+---
+
 ## O que nunca deve ser feito via agent
 
 - Modificar segredos, variáveis de ambiente ou arquivos `.env`
