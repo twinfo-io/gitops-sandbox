@@ -116,6 +116,7 @@ src/
     sync-project.ts         # sync bidirecional Linear ↔ Git (--pull / --push / --both)
     parse-pr.ts             # parser Q&A do PR template → objeto estruturado
     create-demand.ts        # auto-criação de issue furtiva com epic + sprint lookup
+    slice-epic.ts            # fatia spec de épico commitada em épico + histórias no Linear
     report-result.ts        # feedback loop determinístico: resultado do agent → Linear
 
 api/
@@ -127,6 +128,7 @@ docs/
   GOVERNANCE.md             # matriz de permissão de labels por papel/repo
   ROADMAP.md                # fases do projeto: concluído, em andamento, planejado
   demands/                  # demandas furtivas detectadas (gerado automaticamente)
+  epic-specs/               # specs de épico escritas à mão, fatiadas em issues automaticamente
 
 .specs/
   SPECS.md                  # especificação técnica do sistema

@@ -134,8 +134,14 @@ jobs:
           fi
 
           # ── 2. Sem Linear ID → demanda furtiva ───────────────────────────
+          # main tem branch protection (TWI-349/E14) — push direto é rejeitado. O bot
+          # abre PR igual qualquer humano/agente, com skip-review (é só backfill de ID,
+          # sem risco de código) e auto-merge (ainda espera 1 aprovação, só não exige
+          # clique extra de "merge" depois de aprovado).
           echo "[gitops-sync] Sem LINEAR_ID — buscando demandas furtivas em docs/demands/..."
           CREATED_ANY=false
+          git config user.name "GitOps Bot"
+          git config user.email "gitops@twinfo.io"
 
           for DEMAND_FILE in docs/demands/*.md; do
             [ -f "$DEMAND_FILE" ] || continue
@@ -153,20 +159,81 @@ jobs:
               BASENAME=$(basename "$DEMAND_FILE" .md)
               NEW_PATH="docs/demands/${NEW_ID,,}-${BASENAME}.md"
               mv "$DEMAND_FILE" "$NEW_PATH"
-              echo "[gitops-sync] Arquivo renomeado: $NEW_PATH"
 
-              git config user.name "GitOps Bot"
-              git config user.email "gitops@twinfo.io"
+              BOT_BRANCH="bot/link-demand-${NEW_ID,,}"
+              git checkout -b "$BOT_BRANCH"
               git add docs/demands/
-              COMMIT_MSG="chore(gitops): link demand $NEW_ID [skip ci] -- Demanda furtiva: $NEW_PATH"
-              git commit -m "$COMMIT_MSG"
-              git push origin main
-              echo "[gitops-sync] ✅ $NEW_ID criado e commitado"
+              git commit -m "chore(gitops): link demand $NEW_ID -- Demanda furtiva: $NEW_PATH"
+              git push origin "$BOT_BRANCH"
+
+              gh pr create \
+                --title "chore(gitops): link demand $NEW_ID" \
+                --body "LINEAR_ID: $NEW_ID
+TYPE: TASK
+TITLE: Backfill automático de LINEAR_ID
+REASON: Demanda furtiva detectada pelo gitops-sync, issue já criada no Linear — só falta linkar o ID no arquivo
+AGENTS:
+
+---
+Backfill automático, sem mudança de código. Arquivo renomeado: \`$NEW_PATH\`." \
+                --label "skip-review" \
+                --base main --head "$BOT_BRANCH"
+              gh pr merge "$BOT_BRANCH" --auto --squash \
+                || echo "[gitops-sync] auto-merge não habilitado no repo — PR aberto, aguardando aprovação + merge manual"
+
+              git checkout main
+              echo "[gitops-sync] ✅ $NEW_ID criado, PR aberto em $BOT_BRANCH"
             fi
           done
 
           if [ "$CREATED_ANY" = false ]; then
             echo "[gitops-sync] Nenhuma demanda furtiva pendente encontrada"
+          fi
+
+          # ── 3. Sem Linear ID → fatia spec de épico (docs/epic-specs/) ──────
+          echo "[gitops-sync] Buscando specs de épico pendentes em docs/epic-specs/..."
+          SLICED_ANY=false
+
+          for SPEC_FILE in docs/epic-specs/*.md; do
+            [ -f "$SPEC_FILE" ] || continue
+            [[ "$SPEC_FILE" == *"README"* ]] && continue
+            # Só processa se houver pelo menos um campo *_LINEAR_ID vazio (épico ou história pendente)
+            grep -qP '_LINEAR_ID:\s*$' "$SPEC_FILE" 2>/dev/null || continue
+
+            echo "[gitops-sync] Spec de épico com pendência: $SPEC_FILE"
+            NEW_IDS=$(npx tsx src/scripts/slice-epic.ts "$SPEC_FILE")
+
+            if [ -n "$NEW_IDS" ]; then
+              SLICED_ANY=true
+              FIRST_ID=$(echo "$NEW_IDS" | head -1)
+              BOT_BRANCH="bot/slice-epic-${FIRST_ID,,}"
+              git checkout -b "$BOT_BRANCH"
+              git add docs/epic-specs/
+              git commit -m "chore(gitops): fatia épico $FIRST_ID -- $(echo "$NEW_IDS" | tr '\n' ' ')"
+              git push origin "$BOT_BRANCH"
+
+              gh pr create \
+                --title "chore(gitops): fatia épico $FIRST_ID a partir de $SPEC_FILE" \
+                --body "LINEAR_ID: $FIRST_ID
+TYPE: TASK
+TITLE: Backfill automático de IDs de épico/história
+REASON: Spec commitada em docs/epic-specs/ fatiada automaticamente — issues já criadas no Linear ($(echo "$NEW_IDS" | tr '\n' ', '))
+AGENTS:
+
+---
+Backfill automático, sem mudança de código." \
+                --label "skip-review" \
+                --base main --head "$BOT_BRANCH"
+              gh pr merge "$BOT_BRANCH" --auto --squash \
+                || echo "[gitops-sync] auto-merge não habilitado no repo — PR aberto, aguardando aprovação + merge manual"
+
+              git checkout main
+              echo "[gitops-sync] ✅ épico fatiado, PR aberto em $BOT_BRANCH"
+            fi
+          done
+
+          if [ "$SLICED_ANY" = false ]; then
+            echo "[gitops-sync] Nenhuma spec de épico pendente encontrada"
           fi
 
   # ─── Execução de Agent via workflow_dispatch (disparado pelo webhook) ─────────
