@@ -67,6 +67,7 @@ describe('buildComment', () => {
     tokensIn: null,
     tokensOut: null,
     costUsd: null,
+    semanticComment: null,
   }
 
   it('sucesso contém ✅ e label', () => {
@@ -143,6 +144,17 @@ describe('buildComment', () => {
     expect(comment).toContain('⏱ 10s')
     expect(comment).not.toContain('🔤')
   })
+
+  it('inclui o bloco do semantic-check quando fornecido', () => {
+    const comment = buildComment({ ...base, semanticComment: '### 🔍 Check semântico\n\nAlgo estranho aqui.' })
+    expect(comment).toContain('Check semântico')
+    expect(comment).toContain('Algo estranho aqui')
+  })
+
+  it('não inclui nada de semantic-check quando é null', () => {
+    const comment = buildComment(base)
+    expect(comment).not.toContain('🔍')
+  })
 })
 
 // ── Contrato de truncamento de summary ────────────────────────────────────────
@@ -192,6 +204,7 @@ describe('main()', () => {
     delete process.env.AGENT_TOKENS_IN
     delete process.env.AGENT_TOKENS_OUT
     delete process.env.AGENT_COST_USD
+    delete process.env.SEMANTIC_COMMENT
   })
 
   it('reporta sucesso: resolve issue, comenta e atualiza status', async () => {
@@ -228,6 +241,28 @@ describe('main()', () => {
     expect(commentBody).toContain('37s')
     expect(commentBody).toContain('2000 in / 500 out')
     expect(commentBody).toContain('$0.05')
+  })
+
+  it('propaga SEMANTIC_COMMENT para o comentário quando presente', async () => {
+    mockLinearOk()
+    process.env.SEMANTIC_COMMENT = '### 🔍 Check semântico\n\nDivergência encontrada aqui.'
+
+    await main()
+
+    const commentCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[1] as [string, RequestInit]
+    const commentBody = JSON.parse(commentCall[1].body as string).variables.input.body as string
+    expect(commentBody).toContain('Divergência encontrada aqui')
+  })
+
+  it('não inclui bloco de semantic-check quando SEMANTIC_COMMENT está vazio', async () => {
+    mockLinearOk()
+    process.env.SEMANTIC_COMMENT = ''
+
+    await main()
+
+    const commentCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[1] as [string, RequestInit]
+    const commentBody = JSON.parse(commentCall[1].body as string).variables.input.body as string
+    expect(commentBody).not.toContain('🔍')
   })
 
   it('status ausente/inválido vira failure (fallback seguro)', async () => {

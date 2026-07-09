@@ -11,6 +11,7 @@
  *   AGENT_STATUS     — "success" | "failure"
  *   RUN_URL          — URL do GitHub Actions run (opcional)
  *   AGENT_SUMMARY    — resumo de até 500 chars do que o agent fez (opcional)
+ *   SEMANTIC_COMMENT — bloco de achado do semantic-check.ts, se houver (opcional, TWI-350/E15)
  */
 
 import { readFile } from 'fs/promises'
@@ -41,6 +42,7 @@ export interface ReportInput {
   tokensIn: string | null
   tokensOut: string | null
   costUsd: string | null
+  semanticComment: string | null
 }
 
 // ── State machine: agent × status → Linear state ─────────────────────────────
@@ -180,6 +182,12 @@ export function buildComment(input: ReportInput): string {
 
   if (runLink) lines.push(runLink)
 
+  // Check semântico (TWI-350 / E15) — informativo, nunca muda o status/estado, só soma contexto
+  // pra revisão humana. Vazio na maioria das runs (só aparece quando há achado real).
+  if (input.semanticComment) {
+    lines.push('', input.semanticComment)
+  }
+
   lines.push('', `_Reportado automaticamente pelo GitOps × Claude Agents_`)
 
   return lines.join('\n')
@@ -199,6 +207,7 @@ export async function main(): Promise<void> {
   const tokensIn        = process.env.AGENT_TOKENS_IN ?? null
   const tokensOut       = process.env.AGENT_TOKENS_OUT ?? null
   const costUsd         = process.env.AGENT_COST_USD ?? null
+  const semanticComment = process.env.SEMANTIC_COMMENT || null
 
   if (!issueIdentifier) throw new Error('ISSUE_ID env var não definida')
   if (!agentLabel)      throw new Error('AGENT_LABEL env var não definida')
@@ -207,7 +216,7 @@ export async function main(): Promise<void> {
 
   const input: ReportInput = {
     issueId: issueIdentifier, agentLabel, status, runUrl, summary,
-    durationSeconds, tokensIn, tokensOut, costUsd,
+    durationSeconds, tokensIn, tokensOut, costUsd, semanticComment,
   }
 
   console.log(`[report-result] ${issueIdentifier} | ${agentLabel} | ${status}`)

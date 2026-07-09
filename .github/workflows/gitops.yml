@@ -417,6 +417,7 @@ jobs:
           else
             BRANCH="agent/${ISSUE_SLUG}-specs"
           fi
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
           if ! git fetch origin "$BRANCH"; then
             echo "[verify] Branch $BRANCH não encontrada — agent não chegou a commitar/push."
@@ -435,10 +436,32 @@ jobs:
             echo "verified=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Complementa a verificação sintática acima (compila? passa teste?) com uma checagem
+      # semântica: o diff realmente satisfaz o que a issue pediu? Método intended-vs-implemented
+      # (TWI-350 / E15). NÃO bloqueia — é informativo, entra como comentário extra pro humano ver
+      # antes de aprovar (branch protection do E14 já garante que alguém revisa mesmo).
+      - name: Semantic check (intended vs implemented)
+        id: semantic
+        if: |
+          always() &&
+          steps.verify.outputs.verified == 'true' &&
+          (github.event.inputs.agent_label == 'agent:generate-code' || github.event.inputs.agent_label == 'agent:generate-tests')
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          ISSUE_ID: ${{ github.event.inputs.issue_id }}
+          BASE_BRANCH: main
+          HEAD_BRANCH: ${{ steps.verify.outputs.branch }}
+        run: |
+          git fetch origin main
+          npx tsx src/scripts/semantic-check.ts
+
       - name: Report result to Linear
         if: always()
         env:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          SEMANTIC_COMMENT: ${{ steps.semantic.outputs.semantic_comment }}
           ISSUE_ID: ${{ github.event.inputs.issue_id }}
           AGENT_LABEL: ${{ github.event.inputs.agent_label }}
           # success só se a CLI rodou sem erro E (não havia verificação aplicável OU a verificação passou)
