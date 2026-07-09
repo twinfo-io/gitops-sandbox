@@ -107,6 +107,29 @@ Se `ANTHROPIC_API_KEY`, `LINEAR_API_KEY` ou `GITHUB_TOKEN` aparecerem em logs ou
 
 ---
 
+## Emergência: bypass de branch protection (main)
+
+`main` exige 1 aprovação + status check `Eval Prompts (static)` + `enforce_admins` (nenhum bypass automático, TWI-349/E14). Numa emergência real (hotfix crítico sem revisor disponível), o owner do repo pode desabilitar temporariamente:
+
+```bash
+# Desabilita (temporário — reabilitar assim que possível)
+gh api --method DELETE repos/twinfo-io/gitops-sandbox/branches/main/protection
+
+# Reabilita com a config completa (guardar este bloco, não reinventar)
+cat <<'EOF' | gh api --method PUT repos/twinfo-io/gitops-sandbox/branches/main/protection --input -
+{
+  "required_status_checks": { "strict": true, "contexts": ["Eval Prompts (static)"] },
+  "enforce_admins": true,
+  "required_pull_request_reviews": { "required_approving_review_count": 1, "dismiss_stale_reviews": true },
+  "restrictions": null
+}
+EOF
+```
+
+> Registrar o motivo do bypass como comentário na issue Linear do incidente — todo bypass deveria ter rastro.
+
+---
+
 ## Verificação de saúde do sistema
 
 ```bash
