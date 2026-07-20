@@ -68,6 +68,7 @@ describe('buildComment', () => {
     tokensOut: null,
     costUsd: null,
     semanticComment: null,
+    sanitizeComment: null,
   }
 
   it('sucesso contém ✅ e label', () => {
@@ -155,6 +156,17 @@ describe('buildComment', () => {
     const comment = buildComment(base)
     expect(comment).not.toContain('🔍')
   })
+
+  it('inclui o bloco do sanitize-check quando fornecido', () => {
+    const comment = buildComment({ ...base, sanitizeComment: '### 🛡️ Scan mecânico de sanitização\n\nPadrão suspeito aqui.' })
+    expect(comment).toContain('Scan mecânico de sanitização')
+    expect(comment).toContain('Padrão suspeito aqui')
+  })
+
+  it('não inclui nada de sanitize-check quando é null', () => {
+    const comment = buildComment(base)
+    expect(comment).not.toContain('🛡️')
+  })
 })
 
 // ── Contrato de truncamento de summary ────────────────────────────────────────
@@ -205,6 +217,7 @@ describe('main()', () => {
     delete process.env.AGENT_TOKENS_OUT
     delete process.env.AGENT_COST_USD
     delete process.env.SEMANTIC_COMMENT
+    delete process.env.SANITIZE_COMMENT
   })
 
   it('reporta sucesso: resolve issue, comenta e atualiza status', async () => {
@@ -263,6 +276,28 @@ describe('main()', () => {
     const commentCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[1] as [string, RequestInit]
     const commentBody = JSON.parse(commentCall[1].body as string).variables.input.body as string
     expect(commentBody).not.toContain('🔍')
+  })
+
+  it('propaga SANITIZE_COMMENT para o comentário quando presente', async () => {
+    mockLinearOk()
+    process.env.SANITIZE_COMMENT = '### 🛡️ Scan mecânico de sanitização\n\nPadrão suspeito encontrado aqui.'
+
+    await main()
+
+    const commentCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[1] as [string, RequestInit]
+    const commentBody = JSON.parse(commentCall[1].body as string).variables.input.body as string
+    expect(commentBody).toContain('Padrão suspeito encontrado aqui')
+  })
+
+  it('não inclui bloco de sanitize-check quando SANITIZE_COMMENT está vazio', async () => {
+    mockLinearOk()
+    process.env.SANITIZE_COMMENT = ''
+
+    await main()
+
+    const commentCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[1] as [string, RequestInit]
+    const commentBody = JSON.parse(commentCall[1].body as string).variables.input.body as string
+    expect(commentBody).not.toContain('🛡️')
   })
 
   it('status ausente/inválido vira failure (fallback seguro)', async () => {

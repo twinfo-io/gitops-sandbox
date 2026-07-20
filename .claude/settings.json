@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(**/.env*)",
+      "Write(~/.ssh/**)",
+      "Write(~/.aws/**)",
+      "Write(.github/workflows/**)",
+      "Write(.claude/**)",
+      "Write(CLAUDE.md)",
+      "Write(sync-config.json)",
+      "Bash(curl * | bash)",
+      "Bash(curl * | sh)",
+      "Bash(wget * | bash)",
+      "Bash(wget * | sh)",
+      "Bash(ssh *)",
+      "Bash(scp *)",
+      "Bash(nc *)"
+    ]
+  }
+}

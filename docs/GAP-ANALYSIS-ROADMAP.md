@@ -111,7 +111,7 @@ Fazer do gitops-sandbox a camada padrão de execução segura de agentes Claude 
 
 ### Épicos e features (priorizado por impacto/esforço/risco de segurança)
 
-**Status: 15/16 concluídos** — só E11 (self-healing de CI) em backlog, por decisão explícita do usuário (mercado sem solução madura).
+**Status: 16/17 concluídos** — só E11 (self-healing de CI) em backlog, por decisão explícita do usuário (mercado sem solução madura).
 
 | # | Épico | Impacto | Esforço | Risco se não fizer | Prioridade | Status | Linear | Commit |
 |---|---|---|---|---|---|---|---|---|
@@ -131,6 +131,7 @@ Fazer do gitops-sandbox a camada padrão de execução segura de agentes Claude 
 | E14 | Branch protection em `main` — regra de "humano sempre aprova" não tinha enforcement técnico nenhum | Crítico | Baixo | Merge sem review, sem CI passar, sem nada — mina E1-E13 na última milha | **P0** | ✅ Done — status check obrigatório (`Eval Prompts (static)`) + `enforce_admins`. Aprovação humana obrigatória foi testada e **revertida** logo depois: repo é solo na prática, GitHub nunca permite auto-aprovação — travaria tudo. Ver `docs/GOVERNANCE.md` § checar antes de replicar | [TWI-349](https://linear.app/twinfo-lifters/issue/TWI-349) | `36f7728` |
 | E15 | Check semântico anti-alucinação (intended-vs-implemented) — E5 só verifica sintaxe/teste, não se o diff implementa o que a spec pediu | Alto | Médio | Código passa em teste mas implementa a coisa errada, ninguém percebe até o humano ler linha a linha | **P2** | ✅ Done — não bloqueia (informativo), LLM-judge pode ter falso positivo | [TWI-350](https://linear.app/twinfo-lifters/issue/TWI-350) | — |
 | E16 | Fatiamento de épico/história a partir de spec commitada no Git — não existia caminho "spec grande → hierarquia de issues" | Médio | Médio | PM re-digita manualmente no Linear o que já escreveu na spec | **P3** (menos urgente que E14/E15) | ✅ Done — `slice-epic.ts` + `docs/epic-specs/`, integrado ao `gitops-sync` via PR (não push direto, por causa do E14) | [TWI-351](https://linear.app/twinfo-lifters/issue/TWI-351) | — |
+| E17 | Enforcement técnico anti-prompt-injection — E1/E15 são só instrução de prompt, zero enforcement técnico mesmo com `--dangerously-skip-permissions` ativo (benchmark crítico vs. [affaan-m/ECC](https://github.com/affaan-m/ECC), 231k★) | Crítico | Baixo-Médio | Agente comprometido lê `~/.ssh`/`.env`, roda `curl\|bash`, ou skill maliciosa (Snyk ToxicSkills: 36% dos skills públicos têm prompt injection) — nada bloqueia de fato | **P0** | ✅ Done — `.claude/settings.json` com `permissions.deny` (respeitado mesmo sob skip-permissions) + `sanitize-check.ts` (scan mecânico não-bloqueante, reforça o `SECURITY_PREAMBLE`) + scan dos skills instalados via marketplace | [TWI-882](https://linear.app/twinfo-lifters/issue/TWI-882) | — |
 
 **Extra não previsto no plano original:** cobertura de testes do repo elevada de 56.33% para 99.55% (statements/lines), incluindo suite nova para `parse-pr.ts` (0%→100%) e correção de bug real (`FIELD_RE` cruzando linha) encontrado no processo. Commit `fed7384`.
 

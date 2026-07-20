@@ -105,6 +105,9 @@ Ciclo completo: **label adicionada → PR aberto → card fechado**, sem tocar n
 ## Estrutura do repositório
 
 ```
+.claude/
+  settings.json             # permissions.deny — enforcement técnico (TWI-882/E17), respeitado mesmo sob --dangerously-skip-permissions
+
 .github/
   workflows/
     gitops.yml              # pipeline principal: auto-code-review, gitops-sync, run-agent
@@ -117,6 +120,8 @@ src/
     parse-pr.ts             # parser Q&A do PR template → objeto estruturado
     create-demand.ts        # auto-criação de issue furtiva com epic + sprint lookup
     slice-epic.ts            # fatia spec de épico commitada em épico + histórias no Linear
+    semantic-check.ts       # LLM-judge intended-vs-implemented (spec × diff), informativo
+    sanitize-check.ts       # scan mecânico anti-prompt-injection (unicode oculto, jailbreak, etc.)
     report-result.ts        # feedback loop determinístico: resultado do agent → Linear
 
 api/
@@ -197,6 +202,7 @@ O sistema detecta o arquivo sem `LINEAR_ID` no próximo push e cria a issue no L
 - **Gate de write-access:** se `LINEAR_TO_GITHUB_MAP` estiver configurado (JSON `{"email@linear":"usuario-github"}`), o webhook só dispara o agent se o autor do label tiver permissão `write`/`admin` no repo alvo (checado via GitHub API). Sem a env var, o gate fica desabilitado — comportamento documentado em [GOVERNANCE.md](docs/GOVERNANCE.md)
 - **Gate de spec/PRD:** `agent:generate-code` só dispara se a issue já tiver a label `spec-approved` (aplicada por PM/tech lead após revisar a spec — ex: gerada via `agent:create-specs`). Sem a label, o webhook bloqueia o dispatch e comenta pedindo a spec (se `LINEAR_API_KEY` estiver configurada)
 - **Anti-prompt-injection:** todo prompt enviado ao Claude (via `run-agent` e `auto-code-review`) recebe, via `--append-system-prompt`, instrução fixa tratando conteúdo de issue/PR/diff como dado, nunca instrução — mitigação para o vetor de ataque conhecido em ferramentas de code-review por LLM (ex: CVE-2024-51355/51356 do PR-Agent)
+- **Enforcement técnico de permissão** (TWI-882/E17, benchmark vs. [affaan-m/ECC](https://github.com/affaan-m/ECC)): até aqui, toda a defesa acima era só instrução de prompt — zero enforcement técnico, mesmo com `--dangerously-skip-permissions` ativo. `.claude/settings.json` adiciona `permissions.deny` real (bloqueia leitura de `~/.ssh`, `~/.aws`, `.env*`, escrita em `.github/workflows/`, `CLAUDE.md`, `sync-config.json`, `.claude/**`, e padrões Bash como `curl|bash`/`ssh`/`scp`/`nc`) — deny rules são respeitadas mesmo sob `--dangerously-skip-permissions` (evaluation order: deny → ask → allow). `src/scripts/sanitize-check.ts` varre issue/PR body por unicode oculto, override de `ANTHROPIC_BASE_URL`, frase de jailbreak etc. antes do agent rodar e reforça o `SECURITY_PREAMBLE` com o achado mecânico — mesmo padrão não-bloqueante do E15. Skills instaladas via marketplace (E12) também passam pela mesma varredura (Snyk ToxicSkills 2026: 36% dos skills públicos escaneados tinham prompt injection)
 - **Economia de tokens:** `--exclude-dynamic-system-prompt-sections` mantém o system prompt estável entre runs de CI (cada run é uma máquina nova), maximizando reuso de prompt cache; `--model` roteia por label (Haiku para tarefas simples/read-only como `agent:run-tests`/`agent:deploy`, Sonnet para as demais) em vez de um modelo único hardcoded
 - Agents operam com escopo mínimo — `ANTHROPIC_API_KEY`, `LINEAR_API_KEY`, `GITHUB_TOKEN` (sem admin), escopados por label: `agent:run-tests` não recebe `GITHUB_TOKEN` (read-only, sem interação com GitHub); `allowedTools` do Claude é resolvido por label (ex: `agent:run-tests` não recebe tools de Edit/Write/PR)
 - **Verification-before-completion:** para `agent:generate-code` e `agent:create-specs`, o CI re-roda `typecheck`+`test` de verdade no branch gerado antes de reportar sucesso ao Linear — o exit code do `claude --print` sozinho não é confiável o bastante (só diz que a CLI não crashou, não que o código funciona)
