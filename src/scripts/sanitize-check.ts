@@ -23,6 +23,12 @@ const PATTERNS: Array<{ name: string; re: RegExp }> = [
   { name: 'override de endpoint/MCP', re: /ANTHROPIC_BASE_URL|enableAllProjectMcpServers/i },
   { name: 'comentário HTML / payload base64 embutido', re: /<!--[\s\S]*?-->|data:text\/html|base64,/i },
   { name: 'frase clássica de jailbreak ("ignore instruções anteriores")', re: /ignore\s+(all|any)?\s*(previous|prior)\s+(instructions|rules|context)/i },
+  // TWI-1112 / E20 — vetores documentados pelo anthropics/claude-code-action (docs/security.md)
+  // que o sanitize-check original (E17) não cobria: title de imagem markdown, atributo HTML
+  // oculto e entidade HTML numérica encadeada (ofuscação char-a-char de palavra-chave).
+  { name: 'imagem markdown com title/alt suspeito (texto longo embutido)', re: /!\[[^\]]*\]\([^)]+\s+["'][^"']{15,}["']\)/i },
+  { name: 'atributo HTML oculto (title/aria-label) com texto longo', re: /<[a-z]+[^>]*\b(title|aria-label)\s*=\s*["'][^"']{15,}["'][^>]*>/i },
+  { name: 'entidade HTML numérica encadeada (possível ofuscação char-a-char)', re: /(&#x?[0-9a-f]+;){4,}/i },
 ]
 
 export function scanContent(content: string): SanitizeFinding[] {

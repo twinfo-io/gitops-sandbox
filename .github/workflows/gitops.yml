@@ -269,7 +269,20 @@ jobs:
         if: |
           github.event.inputs.agent_label == 'agent:create-specs' ||
           startsWith(github.event.inputs.agent_label, 'skill:')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Governança de supply chain (TWI-1113 / E21): `claude plugin marketplace add`
+          # não tem flag de pin de commit/tag — sempre pega HEAD do upstream. Em vez de
+          # fingir um pin que a CLI não sustenta, guardamos o último SHA revisado aqui e
+          # alertamos (não bloqueia) se o upstream andou sem a gente ter revisado a mudança.
+          # Pra atualizar de propósito: revisar o diff do phuryn/pm-skills e trocar o valor
+          # abaixo via PR (não editar em execução automática).
+          PM_SKILLS_KNOWN_GOOD_SHA: "18468a95b427e70e258b51389796367c6f684e7d" # v2.1.0, revisado em 2026-07-31
         run: |
+          ACTUAL_SHA=$(gh api repos/phuryn/pm-skills/commits/main --jq .sha 2>/dev/null || echo "unknown")
+          if [ "$ACTUAL_SHA" != "unknown" ] && [ "$ACTUAL_SHA" != "$PM_SKILLS_KNOWN_GOOD_SHA" ]; then
+            echo "::warning::phuryn/pm-skills mudou desde a última revisão (esperado $PM_SKILLS_KNOWN_GOOD_SHA, atual $ACTUAL_SHA) — instalando mesmo assim (marketplace add não suporta pin de ref), mas o conteúdo instalado nesta run não foi revisado. Revisar o diff e atualizar PM_SKILLS_KNOWN_GOOD_SHA via PR."
+          fi
           claude plugin marketplace add phuryn/pm-skills || echo "::warning::falha ao adicionar marketplace pm-skills"
           for p in pm-toolkit pm-product-strategy pm-product-discovery pm-market-research pm-data-analytics pm-marketing-growth pm-go-to-market pm-execution pm-ai-shipping; do
             claude plugin install "$p@pm-skills" || echo "::warning::falha ao instalar plugin $p@pm-skills"
@@ -444,6 +457,16 @@ jobs:
           echo "cost_usd=${COST_USD}" >> "$GITHUB_OUTPUT"
 
           exit $CLAUDE_EXIT
+
+      # Repo é público — artifact de run público fica visível a qualquer um com acesso
+      # de leitura. Se o agente ecoar uma env var sensível por acidente, isso vazaria
+      # por 90 dias sem esse scrub (TWI-1111 / E19, benchmark vs. claude-code-action
+      # "Full Output Security Warning"). Roda ANTES do upload, de propósito.
+      - name: Scrub secrets from raw agent output
+        if: always()
+        env:
+          ARTIFACT_PATH: /tmp/claude-output.json
+        run: npx tsx src/scripts/scrub-artifact.ts
 
       # Trilha de auditoria fora do Linear (E8): sobrevive mesmo se a API do Linear cair.
       - name: Upload raw agent output
