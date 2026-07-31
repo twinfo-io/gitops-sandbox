@@ -116,6 +116,17 @@ jobs:
       !contains(github.event.pull_request.body, '<!-- agent-created: true -->') &&
       !endsWith(github.actor, '[bot]')
     steps:
+      # Egress control (TWI-1110 / E18): sem isso, um prompt injection que passasse por
+      # SECURITY_PREAMBLE + permissions.deny + sanitize-check ainda teria acesso de rede
+      # irrestrito pra exfiltrar dado — o último elo aberto do lethal-trifecta. Rodando em
+      # modo `audit` por enquanto (loga sem bloquear): pipeline nunca rodou com crédito
+      # Anthropic real, não temos ainda a lista definitiva de endpoints legítimos. Depois
+      # de observar tráfego real (relatório do harden-runner por run), apertar pra `block`.
+      - name: Harden Runner (egress audit)
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -311,8 +322,19 @@ jobs:
   run-agent:
     name: Run Claude Agent
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+    # agent_label=reconcile é tratado pelo job reconcile-linear, não por este (E22) —
+    # sem essa exclusão, um dispatch manual de reconciliation também acionaria um agent
+    # Claude genérico à toa via CLAUDE_PROMPT do branch "else".
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.agent_label != 'reconcile'
     steps:
+      # Egress control (TWI-1110 / E18) — ver nota em auto-code-review. Job de maior
+      # superfície do pipeline (Write/Edit/Bash liberados por label): prioridade #1
+      # pra fechar essa lacuna, mesmo em modo audit primeiro.
+      - name: Harden Runner (egress audit)
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
