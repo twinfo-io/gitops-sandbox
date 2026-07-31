@@ -341,4 +341,27 @@ describe('main()', () => {
     ))
     await expect(main()).rejects.toThrow('campo inválido')
   })
+
+  it('retry (E23): sobrevive a uma falha transitória de rede e completa com sucesso', async () => {
+    let call = 0
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => {
+      call++
+      if (call === 1) return Promise.reject(new Error('ECONNRESET'))
+      if (call === 2) {
+        return Promise.resolve(new Response(JSON.stringify({
+          data: { issueSearch: { nodes: [{ id: 'internal-id-1' }] } },
+        })))
+      }
+      return Promise.resolve(new Response(JSON.stringify({ data: { success: true } })))
+    }))
+
+    await expect(main()).resolves.toBeUndefined()
+    expect(fetch).toHaveBeenCalledTimes(4) // 1 falha + 1 retry (resolveIssueId) + 2 (comment/status)
+  }, 10_000) // withRetry usa setTimeout real (1s) entre tentativas — sem fake timers aqui, propositalmente
+
+  it('retry (E23): propaga erro depois de esgotar as tentativas', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('rede sempre fora')))
+
+    await expect(main()).rejects.toThrow('rede sempre fora')
+  }, 10_000)
 })

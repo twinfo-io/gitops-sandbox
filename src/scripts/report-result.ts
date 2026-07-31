@@ -18,6 +18,7 @@
 import { readFile } from 'fs/promises'
 import { join, resolve } from 'path'
 import { fileURLToPath } from 'url'
+import { withRetry } from './retry'
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../../..')
 
@@ -71,17 +72,22 @@ export function targetState(agentLabel: string, status: AgentStatus): string {
 
 // ── Linear API ────────────────────────────────────────────────────────────────
 
+// Retry (TWI-1115 / E23) só cobre a ida-e-volta de rede (fetch + parse do JSON) — uma
+// resposta bem-formada com `errors` do GraphQL (query/variável inválida) não é retryable,
+// tentar de novo não resolve e só atrasa o erro real chegar ao chamador.
 async function linearQuery<T>(query: string, variables: Record<string, unknown>): Promise<T> {
   const apiKey = process.env.LINEAR_API_KEY
   if (!apiKey) throw new Error('LINEAR_API_KEY env var não definida')
 
-  const resp = await fetch('https://api.linear.app/graphql', {
-    method: 'POST',
-    headers: { Authorization: apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, variables }),
+  const json = await withRetry(async () => {
+    const resp = await fetch('https://api.linear.app/graphql', {
+      method: 'POST',
+      headers: { Authorization: apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables }),
+    })
+    return resp.json() as Promise<{ data?: T; errors?: Array<{ message: string }> }>
   })
 
-  const json = await resp.json() as { data?: T; errors?: Array<{ message: string }> }
   if (json.errors?.length) throw new Error(json.errors[0].message)
   if (!json.data) throw new Error('Linear API retornou resposta vazia')
   return json.data

@@ -410,6 +410,17 @@ jobs:
           echo "[run-agent] Issue: $ISSUE_ID | Agent: $AGENT_LABEL | Model: $AGENT_MODEL"
           echo "[run-agent] Prompt length: ${#CLAUDE_PROMPT} chars"
 
+          # Retry (TWI-1115 / E23): só pros labels com ledger de progresso (E9) — resume
+          # de onde parou em vez de recomeçar, então uma segunda tentativa não duplica
+          # efeito colateral (branch/PR já criado). Pros demais labels (run-tests, deploy,
+          # code-review, security-review, suggest-tests) NÃO faz retry — sem ledger, uma
+          # segunda tentativa arrisca comentário/sub-issue duplicado no Linear. Escopo
+          # deliberadamente conservador; ver TWI-1115 pra retry mais amplo depois.
+          MAX_ATTEMPTS=1
+          if [ "$AGENT_LABEL" = "agent:generate-code" ] || [ "$AGENT_LABEL" = "agent:create-specs" ] || [ "$AGENT_LABEL" = "agent:generate-tests" ]; then
+            MAX_ATTEMPTS=2
+          fi
+
           # Observability (TWI-301 / E8): --output-format json dá duração/tokens/custo
           # estruturados — usados no job summary abaixo (trilha fora do Linear, sobrevive
           # mesmo se a API do Linear cair). Nomes de campo seguem o schema documentado do
@@ -417,16 +428,25 @@ jobs:
           # crédito Anthropic, ver ROADMAP.md Fase 4), vale confirmar contra saída real
           # assim que a primeira execução acontecer.
           START_TS=$(date +%s)
-          printf '%s' "$CLAUDE_PROMPT" | claude --print \
-            --model "$AGENT_MODEL" \
-            --append-system-prompt "$SECURITY_PREAMBLE" \
-            --exclude-dynamic-system-prompt-sections \
-            --dangerously-skip-permissions \
-            --settings .claude/settings.json \
-            --allowedTools "$AGENT_TOOLS" \
-            --output-format json \
-            > /tmp/claude-output.json
-          CLAUDE_EXIT=$?
+          ATTEMPT=1
+          while true; do
+            printf '%s' "$CLAUDE_PROMPT" | claude --print \
+              --model "$AGENT_MODEL" \
+              --append-system-prompt "$SECURITY_PREAMBLE" \
+              --exclude-dynamic-system-prompt-sections \
+              --dangerously-skip-permissions \
+              --settings .claude/settings.json \
+              --allowedTools "$AGENT_TOOLS" \
+              --output-format json \
+              > /tmp/claude-output.json
+            CLAUDE_EXIT=$?
+            if [ $CLAUDE_EXIT -eq 0 ] || [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+              break
+            fi
+            echo "::warning::claude --print falhou (exit $CLAUDE_EXIT) na tentativa $ATTEMPT/$MAX_ATTEMPTS — retry seguro via ledger (E9). Aguardando antes de tentar de novo."
+            sleep 10
+            ATTEMPT=$((ATTEMPT + 1))
+          done
           END_TS=$(date +%s)
           DURATION_S=$((END_TS - START_TS))
 
