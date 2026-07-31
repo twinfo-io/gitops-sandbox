@@ -19,6 +19,7 @@ import { readFile } from 'fs/promises'
 import { join, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { withRetry } from './retry'
+import { postSlackAlert } from './slack'
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../../..')
 
@@ -254,6 +255,14 @@ export async function main(): Promise<void> {
   ])
 
   console.log(`[report-result] ✅ Linear atualizado: ${issueIdentifier} → ${stateKey}`)
+
+  // Alerta de falha real (não smoke test sintético) — achado da comparação com o
+  // framework de QA do Acesse: sinal de valor é avisar quando algo que rodou de
+  // verdade falhou, não testar proativamente infra sem uso real ainda.
+  if (status === 'failure') {
+    const link = runUrl ? ` — ${runUrl}` : ''
+    await postSlackAlert(`🔴 Agent \`${agentLabel}\` falhou em ${issueIdentifier}${link}`)
+  }
 }
 
 /* v8 ignore start -- entrypoint de processo, exercido via execução real da CLI, não em unit test */

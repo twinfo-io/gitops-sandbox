@@ -100,6 +100,7 @@ jobs:
       - name: Rodar reconciliation
         env:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: npx tsx src/scripts/reconcile-linear.ts
 
   # ─── Auto Code Review em todo PR aberto/atualizado ───────────────────────────
@@ -661,4 +662,5 @@ jobs:
           AGENT_TOKENS_IN: ${{ steps.run-claude.outputs.tokens_in }}
           AGENT_TOKENS_OUT: ${{ steps.run-claude.outputs.tokens_out }}
           AGENT_COST_USD: ${{ steps.run-claude.outputs.cost_usd }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: npx tsx src/scripts/report-result.ts
