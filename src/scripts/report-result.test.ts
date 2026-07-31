@@ -218,6 +218,36 @@ describe('main()', () => {
     delete process.env.AGENT_COST_USD
     delete process.env.SEMANTIC_COMMENT
     delete process.env.SANITIZE_COMMENT
+    delete process.env.SLACK_WEBHOOK_URL
+  })
+
+  it('posta alerta no Slack quando o status é failure e SLACK_WEBHOOK_URL está definida', async () => {
+    mockLinearOk()
+    process.env.AGENT_STATUS = 'failure'
+    process.env.SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/fake'
+    process.env.RUN_URL = 'https://github.com/twinfo-io/gitops-sandbox/actions/runs/999'
+
+    await main()
+
+    const slackCall = (fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+      call => call[0] === 'https://hooks.slack.com/services/fake'
+    )
+    expect(slackCall).toBeDefined()
+    const body = JSON.parse((slackCall as [string, RequestInit])[1].body as string)
+    expect(body.text).toContain('agent:generate-code')
+    expect(body.text).toContain('runs/999')
+  })
+
+  it('não posta no Slack quando o status é success', async () => {
+    mockLinearOk()
+    process.env.SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/fake'
+
+    await main()
+
+    const slackCall = (fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+      call => call[0] === 'https://hooks.slack.com/services/fake'
+    )
+    expect(slackCall).toBeUndefined()
   })
 
   it('reporta sucesso: resolve issue, comenta e atualiza status', async () => {

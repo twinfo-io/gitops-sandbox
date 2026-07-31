@@ -15,6 +15,7 @@
 import { readFile } from 'fs/promises'
 import { join, resolve } from 'path'
 import { fileURLToPath } from 'url'
+import { postSlackAlert } from './slack'
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '../../..')
 
@@ -145,6 +146,7 @@ export async function main(): Promise<void> {
   if (report) {
     console.log(report)
     console.log(`::warning::reconcile-linear encontrou drift — ${milestoneFindings.length} milestone(s) suspeito(s), ${unassigned.length} issue(s) sem assignee`)
+    await postSlackAlert(`🟡 Reconciliation encontrou drift no Linear — ${milestoneFindings.length} milestone(s) suspeito(s), ${unassigned.length} issue(s) sem assignee. Ver job summary.`)
   } else {
     console.log('[reconcile-linear] ✅ Nenhum drift encontrado.')
   }

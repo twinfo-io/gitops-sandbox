@@ -128,6 +128,34 @@ describe('main()', () => {
     await expect(main()).resolves.toBeUndefined()
   })
 
+  it('posta alerta no Slack quando encontra drift e SLACK_WEBHOOK_URL está definida', async () => {
+    process.env.SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/fake'
+    const fetchMock = vi.fn().mockResolvedValue(
+      mockReconciliationResponse([{ name: 'Fase 1', description: '✅ Entregue em 2026-06-26', progress: 0 }], [])
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await main()
+
+    const slackCall = fetchMock.mock.calls.find(call => call[0] === 'https://hooks.slack.com/services/fake')
+    expect(slackCall).toBeDefined()
+    delete process.env.SLACK_WEBHOOK_URL
+  })
+
+  it('não posta no Slack quando não há drift', async () => {
+    process.env.SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/fake'
+    const fetchMock = vi.fn().mockResolvedValue(
+      mockReconciliationResponse([{ name: 'Fase 3', description: 'em andamento', progress: 50 }], [])
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await main()
+
+    const slackCall = fetchMock.mock.calls.find(call => call[0] === 'https://hooks.slack.com/services/fake')
+    expect(slackCall).toBeUndefined()
+    delete process.env.SLACK_WEBHOOK_URL
+  })
+
   it('escreve no GITHUB_STEP_SUMMARY quando há drift e a env var está definida', async () => {
     const fsPromises = await import('fs/promises')
     process.env.GITHUB_STEP_SUMMARY = '/tmp/reconcile-test-summary'
