@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
     types: [opened, synchronize, ready_for_review, closed]
+  schedule:
+    # Reconciliation diária (TWI-1114 / E22) — todo sync antes disso era reativo a
+    # evento; sem isso, drift Linear↔GitHub só é achado por acaso (foi exatamente
+    # assim que Fase 1/Fase 2 ficaram presas em 0% por semanas em 2026-07).
+    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       issue_id:
@@ -70,6 +75,32 @@ jobs:
           fi
 
           echo "[convention-check] ✅ Consistente (branch agent/*: $IS_AGENT_BRANCH, marcador presente: $HAS_MARKER)"
+
+  # ─── Reconciliation diária Linear ↔ GitHub (TWI-1114 / E22) ──────────────────
+  # Só sinaliza (job summary + ::warning::) — nunca corrige sozinho. Ver
+  # reconcile-linear.ts. Também disparável manualmente via workflow_dispatch
+  # passando agent_label=reconcile (não aciona nenhum agent de verdade).
+  reconcile-linear:
+    name: Reconciliation Linear × GitHub
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.agent_label == 'reconcile')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Rodar reconciliation
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: npx tsx src/scripts/reconcile-linear.ts
 
   # ─── Auto Code Review em todo PR aberto/atualizado ───────────────────────────
   auto-code-review:
