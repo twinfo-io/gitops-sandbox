@@ -37,6 +37,40 @@ jobs:
       - name: Run static prompt contract check
         run: npm run eval:prompts
 
+  # ─── Convenção branch/PR de agent — enforcement técnico (TWI-1116 / E24) ─────
+  # Antes disso, "branch deve começar com agent/" e "PR body deve começar com o
+  # marcador agent-created" eram só instrução no CLAUDE_PROMPT — nenhum enforcement
+  # técnico (achado do audit pipeline-auditor: regra que devia ser Hook, era só texto).
+  # Não marcado como required status check ainda — precisa rodar limpo em pelo menos
+  # um PR real antes de virar bloqueante (evitar deadlock no PR que introduz o check).
+  convention-check:
+    name: Convenção branch/PR de agent
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Verifica consistência branch agent/* × marcador agent-created
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          IS_AGENT_BRANCH=false
+          [[ "$HEAD_REF" == agent/* ]] && IS_AGENT_BRANCH=true
+
+          HAS_MARKER=false
+          [[ "$PR_BODY" == '<!-- agent-created: true -->'* ]] && HAS_MARKER=true
+
+          if [ "$HAS_MARKER" = true ] && [ "$IS_AGENT_BRANCH" = false ]; then
+            echo "::error::PR body começa com '<!-- agent-created: true -->' mas a branch '$HEAD_REF' não começa com 'agent/' — convenção obrigatória do CLAUDE.md violada."
+            exit 1
+          fi
+
+          if [ "$IS_AGENT_BRANCH" = true ] && [ "$HAS_MARKER" = false ]; then
+            echo "::error::Branch '$HEAD_REF' começa com 'agent/' mas o PR body não começa com o marcador '<!-- agent-created: true -->' — convenção obrigatória do CLAUDE.md violada."
+            exit 1
+          fi
+
+          echo "[convention-check] ✅ Consistente (branch agent/*: $IS_AGENT_BRANCH, marcador presente: $HAS_MARKER)"
+
   # ─── Auto Code Review em todo PR aberto/atualizado ───────────────────────────
   auto-code-review:
     name: Claude Code Review
